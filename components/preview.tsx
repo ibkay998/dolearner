@@ -3,45 +3,73 @@
 import { useState, useEffect } from "react"
 import { transform } from "@babel/standalone"
 
-export function Preview({ code }: { code: string }) {
+export function Preview({ code, id = "default" }: { code: string; id?: string }) {
   const [error, setError] = useState<string | null>(null)
   const [compiledCode, setCompiledCode] = useState("")
+  // Add a timestamp to force re-renders
+  const [timestamp, setTimestamp] = useState(Date.now())
+
+  // Update timestamp whenever code changes to force re-renders
+  useEffect(() => {
+    setTimestamp(Date.now());
+  }, [code]);
 
   useEffect(() => {
-    try {
-      // Add necessary imports and wrapper for the user's code
-      const wrappedCode = `
-        ${code}
+    let isMounted = true;
 
-        const PreviewComponent = () => {
-          try {
-            if (typeof Component !== 'function') {
-              throw new Error('Component is not defined or is not a function');
+    const compileCode = async () => {
+      try {
+        // Add necessary imports and wrapper for the user's code
+        // Ensure Component is defined with a unique name to avoid conflicts
+        const wrappedCode = `
+          // Define Component function from user code
+          ${code}
+
+          // Create preview component that renders the user's Component
+          const PreviewComponent = () => {
+            try {
+              if (typeof Component !== 'function') {
+                throw new Error('Component is not defined or is not a function');
+              }
+              return React.createElement(Component);
+            } catch (error) {
+              return React.createElement('div', {
+                style: { color: 'red', padding: '1rem' }
+              }, 'Error: ' + error.message);
             }
-            return React.createElement(Component);
-          } catch (error) {
-            return React.createElement('div', {
-              style: { color: 'red', padding: '1rem' }
-            }, 'Error: ' + error.message);
-          }
-        };
-      `
+          };
+        `
 
-      // Transform JSX to JS
-      const { code: transformedCode } = transform(wrappedCode, {
-        presets: ["react"],
-        filename: 'component.jsx',
-        sourceType: "module",
-        ast: false,
-        retainLines: true,
-      })
+        // Transform JSX to JS
+        const { code: transformedCode } = transform(wrappedCode, {
+          presets: ["react"],
+          filename: 'component.jsx',
+          sourceType: "module",
+          ast: false,
+          retainLines: true,
+        })
 
-      setCompiledCode(transformedCode || '')
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    }
-  }, [code])
+        if (isMounted) {
+          setCompiledCode(transformedCode || '')
+          setError(null)
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Unknown error')
+        }
+      }
+    };
+
+    // Use a small timeout to ensure the latest code is used
+    const timeoutId = setTimeout(() => {
+      compileCode();
+    }, 10);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [code, timestamp])
 
   if (error) {
     return (
@@ -55,7 +83,8 @@ export function Preview({ code }: { code: string }) {
   return (
     <div className="preview-container">
       <iframe
-        title="preview"
+        key={`preview-${id}-${timestamp}`} // Use timestamp to force re-render
+        title={`preview-${id}`}
         srcDoc={`
           <!DOCTYPE html>
           <html>
@@ -95,14 +124,26 @@ export function Preview({ code }: { code: string }) {
                 }
 
                 try {
+                  // Clear any previous definitions
+                  window.Component = undefined;
+
                   // Inject the transformed code here
                   ${compiledCode}
 
-                  root.render(
-                    React.createElement(ErrorBoundary, null,
-                      React.createElement(PreviewComponent)
-                    )
-                  );
+                  // Ensure Component is defined before rendering
+                  if (typeof PreviewComponent === 'function') {
+                    root.render(
+                      React.createElement(ErrorBoundary, null,
+                        React.createElement(PreviewComponent)
+                      )
+                    );
+                  } else {
+                    root.render(
+                      React.createElement('div', {
+                        style: { color: 'red', padding: '1rem' }
+                      }, 'Error: PreviewComponent is not defined')
+                    );
+                  }
                 } catch (error) {
                   root.render(
                     React.createElement('div', {

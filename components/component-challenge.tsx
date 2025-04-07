@@ -14,6 +14,8 @@ export function ComponentChallenge() {
   const [code, setCode] = useState("")
   const [isCorrect, setIsCorrect] = useState(false)
   const [showSolution, setShowSolution] = useState(false)
+  // Add a key to force re-renders when challenge changes
+  const [challengeKey, setChallengeKey] = useState(`challenge-${0}`)
 
   const currentChallenge = challenges[currentChallengeIndex]
 
@@ -22,6 +24,8 @@ export function ComponentChallenge() {
     setCode(currentChallenge.initialCode)
     setIsCorrect(false)
     setShowSolution(false)
+    // Update challenge key to force re-renders
+    setChallengeKey(`challenge-${currentChallengeIndex}`)
   }, [currentChallengeIndex, currentChallenge.initialCode])
 
   const handleCodeChange = (value: string) => {
@@ -72,11 +76,12 @@ export function ComponentChallenge() {
         <div className="mb-4">
           <p>{currentChallenge.description}</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Check the "Target Component" tab to see what you're trying to build.
+            The target component is shown on the right side for reference as you code.
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          {/* Left column: Code editor */}
           <div className="border rounded-lg overflow-hidden">
             <Tabs defaultValue="code">
               <TabsList className="bg-muted">
@@ -94,20 +99,24 @@ export function ComponentChallenge() {
             </Tabs>
           </div>
 
-          <div className="border rounded-lg overflow-hidden flex flex-col">
-            <Tabs defaultValue="preview">
-              <TabsList className="bg-muted">
-                <TabsTrigger value="preview">Your Preview</TabsTrigger>
-                <TabsTrigger value="expected">Target Component</TabsTrigger>
-              </TabsList>
-              <TabsContent value="preview" className="flex-1 p-4">
-                <Preview code={code} />
-              </TabsContent>
-              <TabsContent value="expected" className="flex-1 p-4">
+          {/* Right column: Preview section with both previews visible */}
+          <div className="flex flex-col gap-4">
+            {/* Target Component Preview (always visible) */}
+            <div className="border rounded-lg overflow-hidden flex-1">
+              <div className="bg-muted px-3 py-2 text-sm font-medium">Target Component</div>
+              <div className="p-4">
                 <div className="mb-2 text-sm text-muted-foreground">This is what you're trying to build:</div>
-                <Preview code={currentChallenge.solutionCode} />
-              </TabsContent>
-            </Tabs>
+                <Preview code={currentChallenge.solutionCode} id={`target-${challengeKey}`} />
+              </div>
+            </div>
+
+            {/* Your Code Preview (always visible) */}
+            <div className="border rounded-lg overflow-hidden flex-1">
+              <div className="bg-muted px-3 py-2 text-sm font-medium">Your Preview</div>
+              <div className="p-4">
+                <Preview code={code} id={`user-${challengeKey}`} />
+              </div>
+            </div>
           </div>
         </div>
 
