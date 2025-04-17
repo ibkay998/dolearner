@@ -1,21 +1,37 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { transform } from "@babel/standalone"
 
-export function Preview({ code, id = "default" }: { code: string; id?: string }) {
+export function Preview({ code, id = "default", preloaded = false }: { code: string; id?: string; preloaded?: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const [compiledCode, setCompiledCode] = useState("")
   // Add a timestamp to force re-renders
   const [timestamp, setTimestamp] = useState(Date.now())
+
+  // Cache for compiled code
+  const codeCache = useRef<{[key: string]: string}>({});
 
   // Update timestamp whenever code changes to force re-renders
   useEffect(() => {
     setTimestamp(Date.now());
   }, [code]);
 
+  // Check if we already have this code in cache
+  useEffect(() => {
+    if (preloaded && codeCache.current[code]) {
+      setCompiledCode(codeCache.current[code]);
+      setError(null);
+    }
+  }, [code, preloaded]);
+
   useEffect(() => {
     let isMounted = true;
+
+    // Skip compilation if we already have this code in cache
+    if (preloaded && codeCache.current[code]) {
+      return;
+    }
 
     const compileCode = async () => {
       try {
@@ -50,6 +66,8 @@ export function Preview({ code, id = "default" }: { code: string; id?: string })
         })
 
         if (isMounted) {
+          // Store in cache for future use
+          codeCache.current[code] = transformedCode || '';
           setCompiledCode(transformedCode || '')
           setError(null)
         }
@@ -69,7 +87,7 @@ export function Preview({ code, id = "default" }: { code: string; id?: string })
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [code, timestamp])
+  }, [code, timestamp, preloaded])
 
   if (error) {
     return (

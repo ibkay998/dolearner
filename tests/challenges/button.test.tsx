@@ -47,7 +47,7 @@ export const buttonTests = [
         pass: true,
         message: 'Button component accepts variant prop and renders different button types.',
       };
-    } catch (error) {
+    } catch (error:any) {
       return {
         pass: false,
         message: `Error testing variant prop: ${error.message}`,

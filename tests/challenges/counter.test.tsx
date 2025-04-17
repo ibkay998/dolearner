@@ -53,7 +53,7 @@ export const counterTests = [
         pass: true,
         message: 'Increment button found.',
       };
-    } catch (error) {
+    } catch (error:any) {
       return {
         pass: false,
         message: `Error testing increment button: ${error.message}`,
@@ -85,7 +85,7 @@ export const counterTests = [
         pass: true,
         message: 'Decrement button found.',
       };
-    } catch (error) {
+    } catch (error:any) {
       return {
         pass: false,
         message: `Error testing decrement button: ${error.message}`,
@@ -115,7 +115,7 @@ export const counterTests = [
         pass: true,
         message: 'Reset button found.',
       };
-    } catch (error) {
+    } catch (error:any) {
       return {
         pass: false,
         message: `Error testing reset button: ${error.message}`,
@@ -160,7 +160,7 @@ export const counterTests = [
         pass: true,
         message: 'Counter increases when increment button is clicked.',
       };
-    } catch (error) {
+    } catch (error:any) {
       return {
         pass: false,
         message: `Error testing increment functionality: ${error.message}`,
@@ -214,7 +214,7 @@ export const counterTests = [
         pass: true,
         message: 'Counter correctly prevents going below 0.',
       };
-    } catch (error) {
+    } catch (error:any) {
       return {
         pass: false,
         message: `Error testing minimum counter value: ${error.message}`,
