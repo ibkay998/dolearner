@@ -80,19 +80,24 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
     if (challenges.length === 0) return;
 
     const preloadAllChallenges = async () => {
+      // Create a new preloaded object to avoid state update issues
       const preloaded: {[key: string]: boolean} = {};
 
       // Mark current challenge as preloaded first for faster initial render
       preloaded[`challenge-${currentChallengeIndex}`] = true;
-      setPreloadedComponents(preloaded);
+      setPreloadedComponents({...preloaded});
 
-      // Then preload all other challenges
-      for (let i = 0; i < challenges.length; i++) {
-        if (i !== currentChallengeIndex) {
-          preloaded[`challenge-${i}`] = true;
-          setPreloadedComponents({...preloaded});
+      // Use a small delay to ensure the current challenge is processed first
+      setTimeout(() => {
+        // Then preload all other challenges
+        for (let i = 0; i < challenges.length; i++) {
+          if (i !== currentChallengeIndex) {
+            preloaded[`challenge-${i}`] = true;
+          }
         }
-      }
+        // Update state once with all preloaded challenges
+        setPreloadedComponents({...preloaded});
+      }, 100);
     };
 
     preloadAllChallenges();

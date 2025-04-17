@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 import { transform } from '@babel/standalone';
 
 /**
@@ -64,7 +64,11 @@ export async function testComponent(code: string, tests: Array<(component: any) 
   // Run each test in sequence to avoid parallel rendering issues
   for (const test of tests) {
     try {
-      const result = await test(Component);
+      // Wrap test execution in act to ensure all updates have been processed
+      let result;
+      await act(async () => {
+        result = await test(Component);
+      });
       results.push(result);
 
       // Clean up any rendered components to prevent memory leaks

@@ -8,12 +8,19 @@ export function Preview({ code, id = "default", preloaded = false }: { code: str
   const [compiledCode, setCompiledCode] = useState("")
   // Add a timestamp for cache busting, but only update it when code changes
   const [timestamp, setTimestamp] = useState(Date.now())
+  // Add a state to track if the component has been mounted
+  const [isMounted, setIsMounted] = useState(false)
 
   // Cache for compiled code
   const codeCache = useRef<{[key: string]: string}>({});
 
   // Only update timestamp when code actually changes, not on every render
   const prevCodeRef = useRef<string>(code);
+
+  // Set isMounted to true after initial render
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (prevCodeRef.current !== code) {
@@ -31,13 +38,14 @@ export function Preview({ code, id = "default", preloaded = false }: { code: str
   }, [code, preloaded]);
 
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
 
     // Skip compilation if we already have this code in cache
     if (preloaded && codeCache.current[code]) {
       return;
     }
 
+    // Force immediate compilation on first render
     const compileCode = async () => {
       try {
         // Add necessary imports and wrapper for the user's code
@@ -70,28 +78,33 @@ export function Preview({ code, id = "default", preloaded = false }: { code: str
           retainLines: true,
         })
 
-        if (isMounted) {
+        if (mounted) {
           // Store in cache for future use
           codeCache.current[code] = transformedCode || '';
           setCompiledCode(transformedCode || '')
           setError(null)
         }
       } catch (err) {
-        if (isMounted) {
+        if (mounted) {
           setError(err instanceof Error ? err.message : 'Unknown error')
         }
       }
     };
 
-    // Use a small timeout to ensure the latest code is used
-    const timeoutId = setTimeout(() => {
+    // If this is the first render or we're not preloaded, compile immediately
+    if (!isMounted || !preloaded) {
       compileCode();
-    }, 10);
+    } else {
+      // Otherwise use a small timeout to ensure the latest code is used
+      const timeoutId = setTimeout(() => {
+        compileCode();
+      }, 10);
 
-    return () => {
-      isMounted = false;
-      clearTimeout(timeoutId);
-    };
+      return () => {
+        mounted = false;
+        clearTimeout(timeoutId);
+      };
+    }
   }, [code, timestamp, preloaded])
 
   if (error) {
