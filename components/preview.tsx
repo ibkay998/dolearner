@@ -6,15 +6,20 @@ import { transform } from "@babel/standalone"
 export function Preview({ code, id = "default", preloaded = false }: { code: string; id?: string; preloaded?: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const [compiledCode, setCompiledCode] = useState("")
-  // Add a timestamp to force re-renders
+  // Add a timestamp for cache busting, but only update it when code changes
   const [timestamp, setTimestamp] = useState(Date.now())
 
   // Cache for compiled code
   const codeCache = useRef<{[key: string]: string}>({});
 
-  // Update timestamp whenever code changes to force re-renders
+  // Only update timestamp when code actually changes, not on every render
+  const prevCodeRef = useRef<string>(code);
+
   useEffect(() => {
-    setTimestamp(Date.now());
+    if (prevCodeRef.current !== code) {
+      setTimestamp(Date.now());
+      prevCodeRef.current = code;
+    }
   }, [code]);
 
   // Check if we already have this code in cache
@@ -99,7 +104,7 @@ export function Preview({ code, id = "default", preloaded = false }: { code: str
   }
 
   return (
-    <div className="preview-container">
+    <div className="preview-container" style={{ height: "200px", overflow: "hidden" }}>
       <iframe
         key={`preview-${id}-${timestamp}`} // Use timestamp to force re-render
         title={`preview-${id}`}
@@ -117,6 +122,14 @@ export function Preview({ code, id = "default", preloaded = false }: { code: str
                   margin: 0;
                   padding: 0;
                   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                  overflow: hidden;
+                  height: 200px;
+                  max-height: 200px;
+                }
+                #root {
+                  height: 200px;
+                  max-height: 200px;
+                  overflow: auto;
                 }
                 .preview-container {
                   padding: 1rem;
@@ -126,7 +139,14 @@ export function Preview({ code, id = "default", preloaded = false }: { code: str
             <body>
               <div id="root"></div>
               <script>
-                const root = ReactDOM.createRoot(document.getElementById('root'));
+                // Create a single root instance
+                const rootElement = document.getElementById('root');
+                let root;
+
+                // Only create the root once
+                if (!root) {
+                  root = ReactDOM.createRoot(rootElement);
+                }
 
                 function ErrorBoundary({ children }) {
                   if (!children) {
@@ -142,8 +162,13 @@ export function Preview({ code, id = "default", preloaded = false }: { code: str
                 }
 
                 try {
-                  // Clear any previous definitions
+                  // Clear any previous definitions and DOM
                   window.Component = undefined;
+
+                  // Clean up any previous renders
+                  while (rootElement.firstChild) {
+                    rootElement.removeChild(rootElement.firstChild);
+                  }
 
                   // Inject the transformed code here
                   ${compiledCode}
@@ -173,8 +198,9 @@ export function Preview({ code, id = "default", preloaded = false }: { code: str
             </body>
           </html>
         `}
-        className="w-full h-full min-h-[200px] border-0"
+        className="w-full h-full border-0"
         sandbox="allow-scripts"
+        style={{ height: "200px" }}
       />
     </div>
   )

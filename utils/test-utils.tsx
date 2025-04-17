@@ -47,14 +47,32 @@ export function renderComponent(code: string) {
  * @returns Test results with pass/fail status and messages
  */
 export async function testComponent(code: string, tests: Array<(component: any) => Promise<TestResult>>) {
-  const Component = compileComponent(code);
-  
+  // Compile the component once to avoid multiple compilations
+  let Component;
+  try {
+    Component = compileComponent(code);
+  } catch (error) {
+    // If compilation fails, return error for all tests
+    return tests.map(() => ({
+      pass: false,
+      message: `Compilation error: ${error.message}`,
+    }));
+  }
+
   const results: TestResult[] = [];
-  
+
+  // Run each test in sequence to avoid parallel rendering issues
   for (const test of tests) {
     try {
       const result = await test(Component);
       results.push(result);
+
+      // Clean up any rendered components to prevent memory leaks
+      // and multiple renders appearing in the DOM
+      if (typeof document !== 'undefined') {
+        // Allow time for React to clean up
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     } catch (error) {
       results.push({
         pass: false,
@@ -62,7 +80,7 @@ export async function testComponent(code: string, tests: Array<(component: any) 
       });
     }
   }
-  
+
   return results;
 }
 

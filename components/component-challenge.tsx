@@ -1,15 +1,28 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { CodeEditor } from "@/components/code-editor"
 import { Preview } from "@/components/preview"
 import { ChallengeNavigation } from "@/components/challenge-navigation"
+import { CompletedChallengesSummary } from "@/components/completed-challenges-summary"
 import { Button } from "@/components/ui/button"
-import { Check, RefreshCw, AlertCircle, Code, Eye, ArrowLeft } from "lucide-react"
+import { Check, RefreshCw, AlertCircle, Code, Eye, ArrowLeft, LayoutDashboard } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { testComponent, TestResult } from "@/utils/test-utils"
 import { challengeTests } from "@/tests/challenges"
 import { Challenge } from "@/data/challenge-types"
+import { useCompletedChallenges } from "@/hooks/use-completed-challenges"
+import { useToast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface ComponentChallengeProps {
   pathId: string;
@@ -22,7 +35,8 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
   const [currentChallengeIndex, setCurrentChallengeIndex] = useState(0)
   const [code, setCode] = useState("")
   const [isCorrect, setIsCorrect] = useState(false)
-  const [showSolution, setShowSolution] = useState(false)
+  // Solution feature temporarily disabled
+  // const [showSolution, setShowSolution] = useState(false)
   // Add a key to force re-renders when challenge changes
   const [challengeKey, setChallengeKey] = useState(`challenge-${0}`)
   // State for test results
@@ -31,6 +45,16 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
   // State for preloaded components
   const [preloadedComponents, setPreloadedComponents] = useState<{[key: string]: boolean}>({})
   const [activeTab, setActiveTab] = useState<"code" | "preview">("code")
+  // State for confirmation modal
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  // State for showing progress summary
+  const [showProgressSummary, setShowProgressSummary] = useState(false)
+  // Use the completed challenges hook
+  const { markChallengeCompleted, isChallengeCompleted } = useCompletedChallenges()
+  // Use toast for notifications
+  const { toast } = useToast()
+  // Reference to test results section for scrolling
+  const testResultsRef = useRef<HTMLDivElement>(null)
 
   // Load challenges for the selected path
   useEffect(() => {
@@ -78,7 +102,8 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
   useEffect(() => {
     setCode(currentChallenge.initialCode)
     setIsCorrect(false)
-    setShowSolution(false)
+    // Solution feature temporarily disabled
+    // setShowSolution(false)
     setTestResults([])
     // Update challenge key to force re-renders
     setChallengeKey(`challenge-${currentChallengeIndex}`)
@@ -93,6 +118,8 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
   }
 
   const runTests = async () => {
+    // First, clear any existing test results to avoid duplicate renders
+    setTestResults([])
     setIsRunningTests(true)
 
     try {
@@ -108,16 +135,18 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
             ? 'Solution marker found!'
             : 'Solution marker not found. Make sure your solution includes the required elements.'
         }])
-        return;
+      } else {
+        // Run the tests
+        const results = await testComponent(code, tests);
+
+        // Set test results after a small delay to ensure DOM cleanup
+        setTimeout(() => {
+          setTestResults(results);
+          // Set isCorrect based on all tests passing
+          const allTestsPassed = results.every(result => result.pass);
+          setIsCorrect(allTestsPassed);
+        }, 50);
       }
-
-      // Run the tests
-      const results = await testComponent(code, tests);
-      setTestResults(results);
-
-      // Set isCorrect based on all tests passing
-      const allTestsPassed = results.every(result => result.pass);
-      setIsCorrect(allTestsPassed);
     } catch (error) {
       console.error('Error running tests:', error);
       setTestResults([{
@@ -127,13 +156,30 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
       setIsCorrect(false);
     } finally {
       setIsRunningTests(false);
+      // Close the confirmation modal after tests are run
+      setShowConfirmModal(false);
+
+      // Scroll to test results after a delay to ensure they're rendered
+      setTimeout(() => {
+        if (testResultsRef.current) {
+          testResultsRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 150);
     }
+  }
+
+  // Function to handle opening the confirmation modal
+  const handleCheckSolution = () => {
+    setShowConfirmModal(true);
   }
 
   const handleReset = () => {
     setCode(currentChallenge.initialCode)
     setIsCorrect(false)
+    // Clear test results
     setTestResults([])
+    // Force a re-render of the preview by updating the challenge key
+    setChallengeKey(`challenge-${currentChallengeIndex}-${Date.now()}`)
   }
 
   const handleSubmit = () => {
@@ -142,8 +188,15 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
       // Run tests one more time to be sure
       runTests().then(() => {
         if (isCorrect) {
-          // Show a success message
-          alert(`Congratulations! You've successfully completed the "${currentChallenge.title}" challenge!`)
+          // Mark the challenge as completed
+          markChallengeCompleted(currentChallenge.id);
+
+          // Show a success toast notification
+          toast({
+            title: "Challenge Completed!",
+            description: `Congratulations! You've successfully completed the "${currentChallenge.title}" challenge!`,
+            variant: "default",
+          })
 
           // Automatically move to the next challenge if available
           if (currentChallengeIndex < challenges.length - 1) {
@@ -169,8 +222,8 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
   return (
     <div className="flex-1 flex flex-col">
       <div className="container mx-auto py-6">
-        {/* Back button */}
-        <div className="mb-6">
+        {/* Back button and Progress button */}
+        <div className="mb-6 flex justify-between">
           <Button
             variant="ghost"
             size="sm"
@@ -180,7 +233,28 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Learning Paths
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowProgressSummary(!showProgressSummary)}
+            className="flex items-center"
+          >
+            <LayoutDashboard className="h-4 w-4 mr-2" />
+            {showProgressSummary ? "Hide Progress" : "Show Progress"}
+          </Button>
         </div>
+
+        {/* Progress Summary */}
+        {showProgressSummary && (
+          <CompletedChallengesSummary
+            challenges={challenges}
+            onSelectChallenge={(index) => {
+              setCurrentChallengeIndex(index);
+              setShowProgressSummary(false);
+            }}
+          />
+        )}
 
         {/* Challenge header with title and actions */}
         <div className="flex flex-col gap-4 mb-6">
@@ -191,13 +265,15 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Reset
               </Button>
+              {/* Show Solution button temporarily hidden
               <Button variant="outline" size="sm" onClick={() => setShowSolution(!showSolution)} className="transition-colors">
                 {showSolution ? "Hide Solution" : "Show Solution"}
               </Button>
+              */}
               <Button
                 variant="default"
                 size="sm"
-                onClick={runTests}
+                onClick={handleCheckSolution}
                 disabled={isRunningTests}
                 className="transition-colors"
               >
@@ -243,16 +319,20 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "code" | "preview")} className="w-full">
               <TabsList className="bg-muted w-full justify-start border-b">
                 <TabsTrigger value="code" className="flex-1"><Code className="h-4 w-4 mr-2" />Your Code</TabsTrigger>
+                {/* Solution tab temporarily hidden
                 {showSolution && <TabsTrigger value="solution" className="flex-1">Solution</TabsTrigger>}
+                */}
               </TabsList>
               <TabsContent value="code" className="p-0 m-0">
                 <CodeEditor value={code} onChange={handleCodeChange} />
               </TabsContent>
+              {/* Solution content temporarily hidden
               {showSolution && (
                 <TabsContent value="solution" className="p-0 m-0">
                   <CodeEditor value={currentChallenge.solutionCode} readOnly={true} />
                 </TabsContent>
               )}
+              */}
             </Tabs>
           </div>
 
@@ -265,7 +345,9 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
               </div>
               <div className="p-6">
                 <div className="mb-3 text-sm text-muted-foreground">This is what you're trying to build:</div>
-                <Preview code={currentChallenge.solutionCode} id={`target-${challengeKey}`} />
+                <div className="h-[200px] overflow-auto">
+                  <Preview code={currentChallenge.solutionCode} id={`target-${challengeKey}`} />
+                </div>
               </div>
             </div>
 
@@ -275,15 +357,18 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
                 <Eye className="h-4 w-4 mr-2" /> Your Preview
               </div>
               <div className="p-6">
-                <Preview code={code} id={`user-${challengeKey}`} preloaded={preloadedComponents[`challenge-${currentChallengeIndex}`]} />
+                <div className="h-[200px] overflow-auto">
+                  <Preview code={code} id={`user-${challengeKey}`} preloaded={preloadedComponents[`challenge-${currentChallengeIndex}`]} />
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Test Results Section */}
-        {testResults.length > 0 && (
-          <div className="mb-6 bg-white border rounded-lg overflow-hidden shadow-sm">
+        {/* Test Results Section - Always render the container but conditionally show content */}
+        <div ref={testResultsRef} className="mb-6 bg-white border rounded-lg overflow-hidden shadow-sm"
+          style={{ display: testResults.length > 0 ? 'block' : 'none' }}>
+
             <div className="bg-muted px-4 py-3 text-sm font-medium border-b flex justify-between items-center">
               <span>Test Results</span>
               <span className="text-xs bg-gray-100 px-2 py-1 rounded-full">
@@ -334,7 +419,6 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
               )}
             </div>
           </div>
-        )}
 
         <div className="sticky bottom-0 bg-white border-t py-3 mt-auto -mx-6 px-6 shadow-md">
           <div className="container mx-auto">
@@ -343,11 +427,41 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
               total={challenges.length}
               onPrevious={handlePrevious}
               onNext={handleNext}
-              isCompleted={isCorrect}
+              isCompleted={isCorrect || isChallengeCompleted(currentChallenge.id)}
             />
           </div>
         </div>
       </div>
+      {/* Confirmation Modal */}
+      <AlertDialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Check your solution?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you ready to check your solution for the "{currentChallenge.title}" challenge?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRunningTests}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                runTests();
+                // No need to manually close the dialog as we do it in the runTests function
+              }}
+              disabled={isRunningTests}
+            >
+              {isRunningTests ? (
+                <>
+                  <div className="animate-spin h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full"></div>
+                  Running Tests...
+                </>
+              ) : (
+                "Check Solution"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
