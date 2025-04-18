@@ -1,6 +1,6 @@
-import { render, screen, cleanup, prettyDOM,act} from '@testing-library/react';
-
+import { render, screen, cleanup, prettyDOM } from '@testing-library/react';
 import { compileComponent, TestResult } from '@/utils/test-utils';
+import { actWrapper } from '@/utils/test-act-wrapper';
 
 export const buttonTests = [
   // Test 1: Check if the Button component exists
@@ -11,7 +11,7 @@ export const buttonTests = [
       console.log(Component,"here ibk")
 
       let renderResult: ReturnType<typeof render>;
-      await act(async () => {
+      await actWrapper(async () => {
         renderResult = render(<Component />);
       });
 
@@ -40,7 +40,7 @@ export const buttonTests = [
   async (Component: any): Promise<TestResult> => {
     try {
       let renderResult: ReturnType<typeof render>;
-      await act(async () => {
+      await actWrapper(async () => {
         renderResult = render(<Component />);
       });
 
@@ -71,7 +71,7 @@ export const buttonTests = [
   async (Component: any): Promise<TestResult> => {
     try {
       let renderResult: ReturnType<typeof render>;
-      await act(async () => {
+      await actWrapper(async () => {
         renderResult = render(<Component />);
       });
 
@@ -111,7 +111,7 @@ export const buttonTests = [
       console.log(Component,"here")
 
       let renderResult: ReturnType<typeof render>;
-      await act(async () => {
+      await actWrapper(async () => {
         renderResult = render(<Component />);
       });
 

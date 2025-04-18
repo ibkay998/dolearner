@@ -1,6 +1,7 @@
 import { render, cleanup } from '@testing-library/react';
 import { transform } from '@babel/standalone';
 import React from 'react';
+import { actWrapper } from './test-act-wrapper';
 
 /**
  * Compiles a React component string into a usable component
@@ -46,9 +47,13 @@ export function compileComponent(code: string) {
  * @param code The component code as a string
  * @returns The rendered component and testing utilities
  */
-export function renderComponent(code: string) {
+export async function renderComponent(code: string) {
   const Component = compileComponent(code);
-  return render(<Component />);
+  let renderResult;
+  await actWrapper(async () => {
+    renderResult = render(<Component />);
+  });
+  return renderResult;
 }
 
 /**
