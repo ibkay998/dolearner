@@ -30,6 +30,18 @@ export function CompletedChallengesSummary({
     }
   }, [completedChallenges, challenges]);
 
+  // Force recalculation when component mounts
+  useEffect(() => {
+    if (challenges.length > 0) {
+      const completedCount = challenges.filter(challenge =>
+        completedChallenges.includes(challenge.id)
+      ).length;
+
+      const percentage = (completedCount / challenges.length) * 100;
+      setCompletionPercentage(Math.round(percentage));
+    }
+  }, []);
+
   return (
     <div className="bg-white p-6 rounded-lg border shadow-sm mb-6">
       <h3 className="text-xl font-semibold mb-4">Your Progress</h3>

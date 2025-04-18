@@ -50,6 +50,8 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   // State for showing progress summary
   const [showProgressSummary, setShowProgressSummary] = useState(false)
+  // State to force re-render of the progress summary
+  const [progressSummaryKey, setProgressSummaryKey] = useState(0)
   // State for showing congratulations dialog
   const [showCongratulations, setShowCongratulations] = useState(false)
   // Use the completed challenges hook
@@ -211,6 +213,9 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
       // Mark the challenge as completed immediately based on current state
       markChallengeCompleted(currentChallenge.id);
 
+      // Increment the progress summary key to force a re-render when it's shown
+      setProgressSummaryKey(prev => prev + 1);
+
       // Show a success toast notification
       toast({
         title: "Challenge Completed!",
@@ -253,7 +258,13 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowProgressSummary(!showProgressSummary)}
+            onClick={() => {
+              // If we're about to show the progress summary, increment the key to force a fresh render
+              if (!showProgressSummary) {
+                setProgressSummaryKey(prev => prev + 1);
+              }
+              setShowProgressSummary(!showProgressSummary);
+            }}
             className="flex items-center"
           >
             <LayoutDashboard className="h-4 w-4 mr-2" />
@@ -264,6 +275,7 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
         {/* Progress Summary */}
         {showProgressSummary && (
           <CompletedChallengesSummary
+            key={progressSummaryKey} // Add key to force re-render when a challenge is completed
             challenges={challenges}
             onSelectChallenge={(index) => {
               setCurrentChallengeIndex(index);
