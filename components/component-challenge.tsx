@@ -5,6 +5,7 @@ import { CodeEditor } from "@/components/code-editor"
 import { Preview } from "@/components/preview"
 import { ChallengeNavigation } from "@/components/challenge-navigation"
 import { CompletedChallengesSummary } from "@/components/completed-challenges-summary"
+import { CongratulationsDialog } from "@/components/congratulations-dialog"
 import { Button } from "@/components/ui/button"
 import { Check, RefreshCw, AlertCircle, Code, Eye, ArrowLeft, LayoutDashboard } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -49,6 +50,8 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   // State for showing progress summary
   const [showProgressSummary, setShowProgressSummary] = useState(false)
+  // State for showing congratulations dialog
+  const [showCongratulations, setShowCongratulations] = useState(false)
   // Use the completed challenges hook
   const { markChallengeCompleted, isChallengeCompleted } = useCompletedChallenges()
   // Use toast for notifications
@@ -118,8 +121,7 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
 
   const handleCodeChange = (value: string) => {
     setCode(value)
-    // Legacy check - we'll keep this for backward compatibility
-    setIsCorrect(value.includes(currentChallenge.solutionMarker))
+    // Remove automatic correctness check - only set through tests
   }
 
   const runTests = async () => {
@@ -130,27 +132,45 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
     try {
       // Get tests for the current challenge
       const tests = challengeTests[currentChallenge.id as keyof typeof challengeTests];
+      console.log('⏳ running tests for:', currentChallenge.id, tests);
 
       if (!tests) {
         // Fall back to the simple solution marker check if no tests are available
-        setIsCorrect(code.includes(currentChallenge.solutionMarker))
+        const markerFound = code.includes(currentChallenge.solutionMarker);
+        setIsCorrect(markerFound);
         setTestResults([{
-          pass: code.includes(currentChallenge.solutionMarker),
-          message: code.includes(currentChallenge.solutionMarker)
+          pass: markerFound,
+          message: markerFound
             ? 'Solution marker found!'
             : 'Solution marker not found. Make sure your solution includes the required elements.'
-        }])
+        }]);
       } else {
-        // Run the tests
-        const results = await testComponent(code, tests);
+        // Run the tests with a timeout to prevent hanging
+        const timeoutPromise = new Promise<TestResult[]>((_, reject) => {
+          setTimeout(() => reject(new Error('Tests timed out after 10 seconds')), 10000);
+        });
 
-        // Set test results after a small delay to ensure DOM cleanup
-        setTimeout(() => {
+        try {
+          // Race between the tests and the timeout
+          const results = await Promise.race([
+            testComponent(code, tests),
+            timeoutPromise
+          ]);
+          console.log('🎯 runTests got back:', results);
+
+          // Set test results immediately
           setTestResults(results);
           // Set isCorrect based on all tests passing
           const allTestsPassed = results.every(result => result.pass);
           setIsCorrect(allTestsPassed);
-        }, 50);
+        } catch (testError) {
+          console.error('Test execution error:', testError);
+          setTestResults([{
+            pass: false,
+            message: `Test execution error: ${testError instanceof Error ? testError.message : 'Unknown error'}`
+          }]);
+          setIsCorrect(false);
+        }
       }
     } catch (error) {
       console.error('Error running tests:', error);
@@ -164,12 +184,10 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
       // Close the confirmation modal after tests are run
       setShowConfirmModal(false);
 
-      // Scroll to test results after a delay to ensure they're rendered
-      setTimeout(() => {
-        if (testResultsRef.current) {
-          testResultsRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
-      }, 150);
+      // Scroll to test results immediately
+      if (testResultsRef.current) {
+        testResultsRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   }
 
@@ -190,25 +208,18 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
   const handleSubmit = () => {
     // Only allow submission if all tests pass
     if (isCorrect) {
-      // Run tests one more time to be sure
-      runTests().then(() => {
-        if (isCorrect) {
-          // Mark the challenge as completed
-          markChallengeCompleted(currentChallenge.id);
+      // Mark the challenge as completed immediately based on current state
+      markChallengeCompleted(currentChallenge.id);
 
-          // Show a success toast notification
-          toast({
-            title: "Challenge Completed!",
-            description: `Congratulations! You've successfully completed the "${currentChallenge.title}" challenge!`,
-            variant: "default",
-          })
-
-          // Automatically move to the next challenge if available
-          if (currentChallengeIndex < challenges.length - 1) {
-            handleNext()
-          }
-        }
+      // Show a success toast notification
+      toast({
+        title: "Challenge Completed!",
+        description: `Congratulations! You've successfully completed the "${currentChallenge.title}" challenge!`,
+        variant: "default",
       })
+
+      // Show congratulations dialog instead of automatically moving to next challenge
+      setShowCongratulations(true)
     }
   }
 
@@ -299,10 +310,10 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
                   size="sm"
                   onClick={handleSubmit}
                   disabled={isRunningTests}
-                  className="bg-green-600 hover:bg-green-700 text-white transition-colors"
+                  className="bg-green-600 hover:bg-green-700 text-white transition-colors animate-pulse"
                 >
                   <Check className="h-4 w-4 mr-2" />
-                  Submit
+                  Submit Solution
                 </Button>
               )}
             </div>
@@ -410,14 +421,25 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
                   </li>
                 ))}
               </ul>
-              {!isCorrect && testResults.some(r => !r.pass) && (
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+              {testResults.length > 0 && (
+                <div className={`mt-4 p-4 border rounded-lg ${isCorrect ? "bg-green-50 border-green-100" : "bg-blue-50 border-blue-100"}`}>
                   <div className="flex items-start">
-                    <div className="text-blue-700">
-                      <p className="font-medium">Hint</p>
-                      <p className="text-sm mt-1">
-                        Review the failed tests above and make the necessary changes to your code. Click "Check Solution" again when you're ready.
-                      </p>
+                    <div className={isCorrect ? "text-green-700" : "text-blue-700"}>
+                      {isCorrect ? (
+                        <>
+                          <p className="font-medium">All tests passed! 🎉</p>
+                          <p className="text-sm mt-1">
+                            Congratulations! Click the <strong>"Submit Solution"</strong> button above to mark this challenge as completed and move to the next one.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-medium">Hint</p>
+                          <p className="text-sm mt-1">
+                            Review the failed tests above and make the necessary changes to your code. Click "Check Solution" again when you're ready.
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -432,7 +454,7 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
               total={challenges.length}
               onPrevious={handlePrevious}
               onNext={handleNext}
-              isCompleted={isCorrect || isChallengeCompleted(currentChallenge.id)}
+              isCompleted={isChallengeCompleted(currentChallenge.id)}
             />
           </div>
         </div>
@@ -467,6 +489,20 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Congratulations Dialog */}
+      <CongratulationsDialog
+        isOpen={showCongratulations}
+        onClose={() => {
+          setShowCongratulations(false);
+          // After closing the congratulations dialog, move to the next challenge if available
+          if (currentChallengeIndex < challenges.length - 1) {
+            handleNext();
+          }
+        }}
+        challengeTitle={currentChallenge.title}
+        isLastChallenge={currentChallengeIndex === challenges.length - 1}
+      />
     </div>
   )
 }

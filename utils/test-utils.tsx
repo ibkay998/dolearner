@@ -1,5 +1,6 @@
-import { render, act } from '@testing-library/react';
+import { render, cleanup } from '@testing-library/react';
 import { transform } from '@babel/standalone';
+import React from 'react';
 
 /**
  * Compiles a React component string into a usable component
@@ -8,22 +9,32 @@ import { transform } from '@babel/standalone';
  */
 export function compileComponent(code: string) {
   try {
+    console.log('🔨 compiling code:', code);
     // Transform the code using Babel
     const { code: transformedCode } = transform(code, {
       presets: ['react'],
       filename: 'component.jsx',
       sourceType: 'module',
     });
+    console.log('🧩 transformedCode:\n', transformedCode);
 
-    // Create a function that will evaluate the code and return the Component
     const evalCode = new Function('React', `
       ${transformedCode}
       return Component;
     `);
+    // ← This is where require('react') is blowing up:
+    console.log("got here")
+    console.log('✅ babel transform succeeded, now evaluating…', evalCode);
+    const CompFn = evalCode(React);
+    return function WrappedComponent(props:any) {
+      console.log('🔄 WrappedComponent rendering with props:', props);
 
-    // Execute the function with React as an argument
-    const Component = evalCode(require('react'));
-    return Component;
+      // In React 19, we need to be more careful about how we handle components
+      // Just return the component directly and let React handle the rendering
+      return React.createElement(CompFn, props);
+    }
+
+
   } catch (error) {
     console.error('Error compiling component:', error);
     throw error;
@@ -55,7 +66,7 @@ export async function testComponent(code: string, tests: Array<(component: any) 
     // If compilation fails, return error for all tests
     return tests.map(() => ({
       pass: false,
-      message: `Compilation error: ${error.message}`,
+      message: `Compilation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
     }));
   }
 
@@ -64,26 +75,52 @@ export async function testComponent(code: string, tests: Array<(component: any) 
   // Run each test in sequence to avoid parallel rendering issues
   for (const test of tests) {
     try {
-      // Wrap test execution in act to ensure all updates have been processed
-      let result;
-      await act(async () => {
-        result = await test(Component);
-      });
+      // Clean up before each test to ensure a fresh environment
+      cleanup();
+
+      // Create a timeout for each test to prevent hanging
+      const testWithTimeout = async () => {
+        const timeoutPromise = new Promise<TestResult>((_, reject) => {
+          const timeoutId = setTimeout(() => {
+            clearTimeout(timeoutId);
+            reject(new Error('Test timed out after 5 seconds'));
+          }, 5000);
+        });
+
+        try {
+          // In React 19, we need to be more careful with act
+          // Run the test directly and let act be called inside the test if needed
+          const result = await Promise.race([
+            test(Component),
+            timeoutPromise
+          ]);
+
+          if (result) {
+            return result;
+          } else {
+            throw new Error('Test did not return a result');
+          }
+        } catch (innerError) {
+          throw innerError;
+        }
+      };
+
+      // Execute the test with timeout
+      const result = await testWithTimeout();
       results.push(result);
 
-      // Clean up any rendered components to prevent memory leaks
-      // and multiple renders appearing in the DOM
-      if (typeof document !== 'undefined') {
-        // Allow time for React to clean up
-        await new Promise(resolve => setTimeout(resolve, 0));
-      }
+      // Clean up after each test
+      cleanup();
     } catch (error) {
       results.push({
         pass: false,
-        message: `Test error: ${error.message}`,
+        message: `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       });
+      // Make sure to clean up even if the test fails
+      cleanup();
     }
   }
+  console.log('📝 testComponent results:', results);
 
   return results;
 }
