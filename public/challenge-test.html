@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Challenge Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    textarea {
+      width: 100%;
+      height: 300px;
+      font-family: monospace;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #0070f3;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background-color: #0051a8;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      overflow: auto;
+      height: 300px;
+    }
+    .test-result {
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .pass {
+      background-color: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+    .fail {
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+    .challenge-selector {
+      margin-bottom: 20px;
+    }
+    .challenge-selector button.active {
+      background-color: #28a745;
+    }
+    h2 {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Challenge Test</h1>
+  <p>Select a challenge type, enter React component code, and test it against the specialized tests.</p>
+  
+  <div class="challenge-selector">
+    <h3>Select Challenge Type:</h3>
+    <button data-challenge="button" class="challenge-btn">Button</button>
+    <button data-challenge="card" class="challenge-btn">Card</button>
+    <button data-challenge="counter" class="challenge-btn">Counter</button>
+    <button data-challenge="data-fetching" class="challenge-btn">Data Fetching</button>
+    <button data-challenge="form" class="challenge-btn">Form</button>
+    <button data-challenge="tabs" class="challenge-btn">Tabs</button>
+    <button data-challenge="theme-switcher" class="challenge-btn">Theme Switcher</button>
+    <button data-challenge="todo-list" class="challenge-btn">Todo List</button>
+    <button data-challenge="toggle" class="challenge-btn">Toggle</button>
+  </div>
+  
+  <div class="container">
+    <div>
+      <h2>Code:</h2>
+      <textarea id="code">function Component() {
+  return <button className="primary">Click me</button>;
+}</textarea>
+      
+      <div>
+        <button id="test-button">Test</button>
+        <button id="clear-button">Clear</button>
+      </div>
+    </div>
+    
+    <div>
+      <h2>Results:</h2>
+      <div id="test-results"></div>
+      <pre id="raw-results">No results yet.</pre>
+    </div>
+  </div>
+
+  <script>
+    // Sample code templates for each challenge type
+    const codeTemplates = {
+      'button': `function Component() {
+  return <button className="primary">Click me</button>;
+}`,
+      'card': `function Component() {
+  return (
+    <div className="card">
+      <h2>Card Title</h2>
+      <div className="card-content">
+        <p>This is the card content.</p>
+      </div>
+    </div>
+  );
+}`,
+      'counter': `function Component() {
+  const [count, setCount] = React.useState(0);
+  
+  return (
+    <div>
+      <p>Count: {count}</p>
+      <button onClick={() => setCount(count - 1)}>-</button>
+      <button onClick={() => setCount(count + 1)}>+</button>
+    </div>
+  );
+}`,
+      'data-fetching': `function Component() {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('https://api.example.com/data');
+      const json = await response.json();
+      setData(json);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  React.useEffect(() => {
+    fetchData();
+  }, []);
+  
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
+  
+  return (
+    <div>
+      <h2>Data:</h2>
+      {data && data.map(item => (
+        <div key={item.id}>{item.name}</div>
+      ))}
+      <button onClick={fetchData}>Refresh</button>
+    </div>
+  );
+}`,
+      'form': `function Component() {
+  const [formData, setFormData] = React.useState({
+    name: '',
+    email: ''
+  });
+  
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    alert(JSON.stringify(formData, null, 2));
+  };
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      <div>
+        <label htmlFor="name">Name:</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          value={formData.name}
+          onChange={handleChange}
+        />
+      </div>
+      <div>
+        <label htmlFor="email">Email:</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          value={formData.email}
+          onChange={handleChange}
+        />
+      </div>
+      <button type="submit">Submit</button>
+    </form>
+  );
+}`,
+      'tabs': `function Component() {
+  const [activeTab, setActiveTab] = React.useState('tab1');
+  
+  return (
+    <div>
+      <div className="tabs">
+        <button
+          className={activeTab === 'tab1' ? 'active' : ''}
+          onClick={() => setActiveTab('tab1')}
+        >
+          Tab 1
+        </button>
+        <button
+          className={activeTab === 'tab2' ? 'active' : ''}
+          onClick={() => setActiveTab('tab2')}
+        >
+          Tab 2
+        </button>
+        <button
+          className={activeTab === 'tab3' ? 'active' : ''}
+          onClick={() => setActiveTab('tab3')}
+        >
+          Tab 3
+        </button>
+      </div>
+      
+      <div className="tab-content">
+        {activeTab === 'tab1' && <div>Content for Tab 1</div>}
+        {activeTab === 'tab2' && <div>Content for Tab 2</div>}
+        {activeTab === 'tab3' && <div>Content for Tab 3</div>}
+      </div>
+    </div>
+  );
+}`,
+      'theme-switcher': `function Component() {
+  const [theme, setTheme] = React.useState('light');
+  
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+  
+  return (
+    <div className={theme}>
+      <div className="theme-content">
+        <h2>Current Theme: {theme}</h2>
+        <p>This is some content that changes with the theme.</p>
+        <button onClick={toggleTheme}>
+          Switch to {theme === 'light' ? 'Dark' : 'Light'} Theme
+        </button>
+      </div>
+    </div>
+  );
+}`,
+      'todo-list': `function Component() {
+  const [todos, setTodos] = React.useState([
+    { id: 1, text: 'Learn React', completed: false },
+    { id: 2, text: 'Build a todo app', completed: false }
+  ]);
+  const [newTodo, setNewTodo] = React.useState('');
+  
+  const addTodo = (e) => {
+    e.preventDefault();
+    if (!newTodo.trim()) return;
+    
+    setTodos(prev => [
+      ...prev,
+      { id: Date.now(), text: newTodo, completed: false }
+    ]);
+    setNewTodo('');
+  };
+  
+  const toggleTodo = (id) => {
+    setTodos(prev => prev.map(todo => 
+      todo.id === id ? { ...todo, completed: !todo.completed } : todo
+    ));
+  };
+  
+  const deleteTodo = (id) => {
+    setTodos(prev => prev.filter(todo => todo.id !== id));
+  };
+  
+  return (
+    <div>
+      <h2>Todo List</h2>
+      
+      <form onSubmit={addTodo}>
+        <input
+          type="text"
+          value={newTodo}
+          onChange={(e) => setNewTodo(e.target.value)}
+          placeholder="Add a new todo"
+        />
+        <button type="submit">Add</button>
+      </form>
+      
+      <ul>
+        {todos.map(todo => (
+          <li key={todo.id} style={{ textDecoration: todo.completed ? 'line-through' : 'none' }}>
+            <input
+              type="checkbox"
+              checked={todo.completed}
+              onChange={() => toggleTodo(todo.id)}
+            />
+            {todo.text}
+            <button onClick={() => deleteTodo(todo.id)}>Delete</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}`,
+      'toggle': `function Component() {
+  const [isOn, setIsOn] = React.useState(false);
+  
+  const toggle = () => {
+    setIsOn(prev => !prev);
+  };
+  
+  return (
+    <div>
+      <div className={isOn ? 'toggle-on' : 'toggle-off'}>
+        Status: {isOn ? 'ON' : 'OFF'}
+      </div>
+      <button onClick={toggle}>
+        {isOn ? 'Turn Off' : 'Turn On'}
+      </button>
+    </div>
+  );
+}`
+    };
+    
+    // Current challenge type
+    let currentChallenge = 'button';
+    
+    // Set up challenge buttons
+    document.querySelectorAll('.challenge-btn').forEach(button => {
+      button.addEventListener('click', () => {
+        // Update active button
+        document.querySelectorAll('.challenge-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        button.classList.add('active');
+        
+        // Update current challenge
+        currentChallenge = button.dataset.challenge;
+        
+        // Update code template
+        document.getElementById('code').value = codeTemplates[currentChallenge];
+        
+        // Clear results
+        document.getElementById('test-results').innerHTML = '';
+        document.getElementById('raw-results').textContent = 'No results yet.';
+      });
+    });
+    
+    // Set the first button as active
+    document.querySelector('.challenge-btn').classList.add('active');
+    
+    // Test button click handler
+    document.getElementById('test-button').addEventListener('click', async () => {
+      const code = document.getElementById('code').value;
+      const testResultsElement = document.getElementById('test-results');
+      const rawResultsElement = document.getElementById('raw-results');
+      
+      try {
+        testResultsElement.innerHTML = '<div>Testing...</div>';
+        rawResultsElement.textContent = 'Testing...';
+        
+        const response = await fetch('/api/test-challenge', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            code,
+            challengeId: currentChallenge
+          }),
+        });
+        
+        const data = await response.json();
+        rawResultsElement.textContent = JSON.stringify(data, null, 2);
+        
+        // Display test results
+        if (data.testResults && Array.isArray(data.testResults)) {
+          testResultsElement.innerHTML = data.testResults.map(result => `
+            <div class="test-result ${result.pass ? 'pass' : 'fail'}">
+              ${result.pass ? '✅' : '❌'} ${result.message}
+            </div>
+          `).join('');
+          
+          // Add overall result
+          const allPassed = data.testResults.every(result => result.pass);
+          testResultsElement.innerHTML += `
+            <div class="test-result ${allPassed ? 'pass' : 'fail'}" style="font-weight: bold; margin-top: 20px;">
+              ${allPassed ? '✅ All tests passed!' : '❌ Some tests failed.'}
+            </div>
+          `;
+        } else {
+          testResultsElement.innerHTML = '<div>No test results returned.</div>';
+        }
+      } catch (error) {
+        testResultsElement.innerHTML = `<div class="test-result fail">Error: ${error.message}</div>`;
+        rawResultsElement.textContent = `Error: ${error.message}`;
+      }
+    });
+    
+    // Clear button click handler
+    document.getElementById('clear-button').addEventListener('click', () => {
+      document.getElementById('code').value = '';
+      document.getElementById('test-results').innerHTML = '';
+      document.getElementById('raw-results').textContent = 'No results yet.';
+    });
+  </script>
+</body>
+</html>

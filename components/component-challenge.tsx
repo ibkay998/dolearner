@@ -9,11 +9,116 @@ import { CongratulationsDialog } from "@/components/congratulations-dialog"
 import { Button } from "@/components/ui/button"
 import { Check, RefreshCw, AlertCircle, Code, Eye, ArrowLeft, LayoutDashboard } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { testComponent, TestResult } from "@/utils/test-utils"
-import { challengeTests } from "@/tests/challenges"
+import { TestResult } from "@/utils/test-utils"
+import { supabase } from "@/lib/supabase"
+import { useSupabaseAuth } from "@/hooks/use-supabase-auth"
 import { Challenge } from "@/data/challenge-types"
-import { useCompletedChallenges } from "@/hooks/use-completed-challenges"
+import { useCompletedChallengesSupabase } from "@/hooks/use-completed-challenges-supabase"
 import { useToast } from "@/hooks/use-toast"
+
+// Helper function to provide hints for failed tests
+function getHintForTest(challengeId: string, message: string): string {
+  // Default hints for common issues
+  if (message.includes('button')) {
+    return "Try adding a <button> element with appropriate styling and content.";
+  } else if (message.includes('useState')) {
+    return "Make sure you're using React.useState() to manage component state.";
+  } else if (message.includes('event handler')) {
+    return "Add event handlers like onClick, onChange, or onSubmit to handle user interactions.";
+  } else if (message.includes('className')) {
+    return "Add appropriate className attributes for styling your components.";
+  }
+
+  // Challenge-specific hints
+  switch (challengeId) {
+    case 'button':
+      if (message.includes('variant')) {
+        return "Add a className or variant prop to style your button.";
+      }
+      return "Create a button element with text content and styling.";
+
+    case 'card':
+      if (message.includes('title')) {
+        return "Add a heading (h1, h2, or h3) for the card title.";
+      } else if (message.includes('content')) {
+        return "Add a content area inside your card component.";
+      }
+      return "Structure your card with a container, title, and content areas.";
+
+    case 'counter':
+      if (message.includes('display')) {
+        return "Make sure to display the current count value using {count} or similar.";
+      } else if (message.includes('buttons')) {
+        return "Add buttons for incrementing and decrementing the counter.";
+      }
+      return "Use useState to track the count and buttons to change it.";
+
+    case 'data-fetching':
+      if (message.includes('loading')) {
+        return "Add a loading state using useState and display a loading message when fetching data.";
+      } else if (message.includes('error')) {
+        return "Add error handling with try/catch and display error messages when fetch fails.";
+      } else if (message.includes('useEffect')) {
+        return "Use React.useEffect to trigger the data fetching when the component mounts.";
+      }
+      return "Implement data fetching with useState for state, useEffect for the fetch, and handle loading/error states.";
+
+    case 'form':
+      if (message.includes('form element')) {
+        return "Wrap your inputs in a <form> element with an onSubmit handler.";
+      } else if (message.includes('input')) {
+        return "Add input elements with appropriate types, names, and onChange handlers.";
+      } else if (message.includes('submit')) {
+        return "Add a submit button or form submission handler.";
+      }
+      return "Create a form with inputs, state management, and submission handling.";
+
+    case 'tabs':
+      if (message.includes('active tab')) {
+        return "Use useState to track which tab is currently active.";
+      } else if (message.includes('tab buttons')) {
+        return "Create multiple buttons or tabs that users can click to switch content.";
+      } else if (message.includes('conditional')) {
+        return "Use conditional rendering (like {activeTab === 'tab1' && ...}) to show only the active tab's content.";
+      }
+      return "Implement a tabs system with state for the active tab and conditional rendering for content.";
+
+    case 'theme-switcher':
+      if (message.includes('theme')) {
+        return "Use useState to track the current theme (e.g., 'light' or 'dark').";
+      } else if (message.includes('toggle')) {
+        return "Add a button or switch to toggle between themes.";
+      } else if (message.includes('styles')) {
+        return "Apply different styles based on the current theme state.";
+      }
+      return "Create a theme switcher with state management and conditional styling.";
+
+    case 'todo-list':
+      if (message.includes('add')) {
+        return "Implement functionality to add new todos to the list.";
+      } else if (message.includes('toggle')) {
+        return "Add a way to mark todos as complete or incomplete.";
+      } else if (message.includes('delete')) {
+        return "Add functionality to remove todos from the list.";
+      } else if (message.includes('list')) {
+        return "Render the list of todos using .map() or similar.";
+      }
+      return "Create a todo list with add, toggle, and delete functionality.";
+
+    case 'toggle':
+      if (message.includes('toggle state')) {
+        return "Use useState to track whether the toggle is on or off.";
+      } else if (message.includes('visual feedback')) {
+        return "Add styling that changes based on the toggle state.";
+      } else if (message.includes('control')) {
+        return "Add a button or custom control that users can click to toggle the state.";
+      }
+      return "Create a toggle with state management and visual feedback.";
+
+    default:
+      return "Review the test message and make sure your code meets the requirements.";
+  }
+}
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,8 +159,10 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
   const [progressSummaryKey, setProgressSummaryKey] = useState(0)
   // State for showing congratulations dialog
   const [showCongratulations, setShowCongratulations] = useState(false)
-  // Use the completed challenges hook
-  const { markChallengeCompleted, isChallengeCompleted } = useCompletedChallenges()
+  // Use the completed challenges hook with Supabase
+  const { markChallengeCompleted, isChallengeCompleted } = useCompletedChallengesSupabase()
+  // Use Supabase auth
+  const { user } = useSupabaseAuth()
   // Use toast for notifications
   const { toast } = useToast()
   // Reference to test results section for scrolling
@@ -132,47 +239,38 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
     setIsRunningTests(true)
 
     try {
-      // Get tests for the current challenge
-      const tests = challengeTests[currentChallenge.id as keyof typeof challengeTests];
-      console.log('⏳ running tests for:', currentChallenge.id, tests);
-
-      if (!tests) {
-        // Fall back to the simple solution marker check if no tests are available
-        const markerFound = code.includes(currentChallenge.solutionMarker);
-        setIsCorrect(markerFound);
-        setTestResults([{
-          pass: markerFound,
-          message: markerFound
-            ? 'Solution marker found!'
-            : 'Solution marker not found. Make sure your solution includes the required elements.'
-        }]);
-      } else {
-        // Run the tests with a timeout to prevent hanging
-        const timeoutPromise = new Promise<TestResult[]>((_, reject) => {
-          setTimeout(() => reject(new Error('Tests timed out after 10 seconds')), 10000);
+      // Call the server-side API to test the code
+      try {
+        const response = await fetch('/api/test-challenge', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            code,
+            challengeId: currentChallenge.id,
+            userId: user?.id // Include user ID if available
+          }),
         });
 
-        try {
-          // Race between the tests and the timeout
-          const results = await Promise.race([
-            testComponent(code, tests),
-            timeoutPromise
-          ]);
-          console.log('🎯 runTests got back:', results);
+        const data = await response.json();
+        console.log('🎯 runTests got back:', data);
 
-          // Set test results immediately
-          setTestResults(results);
-          // Set isCorrect based on all tests passing
-          const allTestsPassed = results.every(result => result.pass);
-          setIsCorrect(allTestsPassed);
-        } catch (testError) {
-          console.error('Test execution error:', testError);
-          setTestResults([{
-            pass: false,
-            message: `Test execution error: ${testError instanceof Error ? testError.message : 'Unknown error'}`
-          }]);
-          setIsCorrect(false);
+        if (!response.ok) {
+          throw new Error(data.error || `Server error: ${response.status}`);
         }
+
+        // Set test results from the server response
+        setTestResults(data.testResults || []);
+        // Set isCorrect based on the server's determination
+        setIsCorrect(data.isCorrect || false);
+      } catch (serverError) {
+        console.error('Server error:', serverError);
+        setTestResults([{
+          pass: false,
+          message: `Server error: ${serverError instanceof Error ? serverError.message : 'Unknown error'}`
+        }]);
+        setIsCorrect(false);
       }
     } catch (error) {
       console.error('Error running tests:', error);
@@ -207,24 +305,52 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
     setChallengeKey(`challenge-${currentChallengeIndex}-${Date.now()}`)
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Only allow submission if all tests pass
     if (isCorrect) {
-      // Mark the challenge as completed immediately based on current state
-      markChallengeCompleted(currentChallenge.id);
+      try {
+        // If user is authenticated, store completion in Supabase
+        if (user) {
+          // Store the completion in Supabase directly
+          const { error } = await supabase
+            .from('challenge_completions')
+            .upsert({
+              user_id: user.id,
+              challenge_id: currentChallenge.id,
+              code
+            }, {
+              onConflict: 'user_id,challenge_id'
+            });
 
-      // Increment the progress summary key to force a re-render when it's shown
-      setProgressSummaryKey(prev => prev + 1);
+          if (error) {
+            console.error('Error storing challenge completion:', error);
+            throw error;
+          }
+        }
 
-      // Show a success toast notification
-      toast({
-        title: "Challenge Completed!",
-        description: `Congratulations! You've successfully completed the "${currentChallenge.title}" challenge!`,
-        variant: "default",
-      })
+        // Mark the challenge as completed in local state
+        markChallengeCompleted(currentChallenge.id, code);
 
-      // Show congratulations dialog instead of automatically moving to next challenge
-      setShowCongratulations(true)
+        // Increment the progress summary key to force a re-render when it's shown
+        setProgressSummaryKey(prev => prev + 1);
+
+        // Show a success toast notification
+        toast({
+          title: "Challenge Completed!",
+          description: `Congratulations! You've successfully completed the "${currentChallenge.title}" challenge!`,
+          variant: "default",
+        })
+
+        // Show congratulations dialog instead of automatically moving to next challenge
+        setShowCongratulations(true)
+      } catch (error) {
+        console.error('Error submitting challenge:', error);
+        toast({
+          title: "Error",
+          description: "There was an error submitting your solution. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   }
 
@@ -421,13 +547,23 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
                       ) : (
                         <AlertCircle className="h-5 w-5 text-red-500 mr-3 mt-0.5 flex-shrink-0" />
                       )}
-                      <div>
-                        <span className={`font-medium ${result.pass ? 'text-green-700' : 'text-red-700'}`}>
-                          Test {index + 1}: {result.pass ? 'Passed' : 'Failed'}
-                        </span>
-                        <p className="text-sm mt-1 text-gray-600">
+                      <div className="w-full">
+                        <div className="flex justify-between items-center w-full">
+                          <span className={`font-medium ${result.pass ? 'text-green-700' : 'text-red-700'}`}>
+                            {result.pass ? 'Passed' : 'Failed'}
+                          </span>
+                          <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600">
+                            Test {index + 1} of {testResults.length}
+                          </span>
+                        </div>
+                        <p className="text-sm mt-2 text-gray-700 font-medium">
                           {result.message}
                         </p>
+                        {!result.pass && (
+                          <div className="mt-2 text-xs p-2 bg-red-50 rounded border border-red-100 text-red-700">
+                            <strong>Hint:</strong> {getHintForTest(currentChallenge.id, result.message)}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </li>

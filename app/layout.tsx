@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { Toaster } from "@/components/ui/toaster"
 import { Analytics } from "@vercel/analytics/react"
+import { SupabaseProvider } from "@/components/supabase-provider"
 
 export const metadata: Metadata = {
   title: 'v0 App',
@@ -17,9 +18,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
-        <Toaster />
-        <Analytics />
+        <SupabaseProvider>
+          {children}
+          <Toaster />
+          <Analytics />
+        </SupabaseProvider>
       </body>
     </html>
   )
