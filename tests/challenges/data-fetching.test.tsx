@@ -38,7 +38,7 @@ export const dataFetchingTests = [
       // Mock the fetch function to delay response
       const originalFetch = global.fetch;
       global.fetch = jest.fn(() =>
-        new Promise(resolve => setTimeout(() => resolve({ json: () => Promise.resolve([]) }), 100))
+        new Promise(resolve => setTimeout(() => resolve(new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })), 100))
       );
 
       const { container } = render(<Component />);
