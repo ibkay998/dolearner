@@ -9,7 +9,10 @@
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "populate-challenges": "node scripts/populate-challenges.js"
+    "populate-challenges": "node scripts/populate-challenges.js",
+    "setup-test-system": "node scripts/setup-test-system.js",
+    "create-test-tables": "node scripts/create-test-tables.js",
+    "migrate-tests": "node scripts/migrate-tests-to-db.js"
   },
   "dependencies": {
     "@babel/standalone": "latest",

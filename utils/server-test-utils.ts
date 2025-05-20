@@ -1,5 +1,6 @@
 import { transform } from '@babel/standalone';
 import { TestResult } from './test-utils';
+import * as vm from 'vm';
 
 /**
  * Server-side function to compile a React component string
@@ -111,4 +112,82 @@ export function analyzeComponentCode(code: string, requirements: string[]): Test
         : `Code is missing required element: ${req}`
     };
   });
+}
+
+/**
+ * Server-side function to run test code against a component
+ * @param componentCode The component code as a string
+ * @param testCode The test code as a string
+ * @param expectedResult The expected result of the test (optional)
+ * @returns Test result
+ */
+export async function runTestCode(
+  componentCode: string,
+  testCode: string,
+  expectedResult?: any
+): Promise<TestResult> {
+  try {
+    // Compile the component code
+    const compiledComponentCode = compileComponentCode(componentCode);
+
+    // Create a sandbox with necessary globals
+    const sandbox = {
+      console,
+      require: require,
+      module: { exports: {} },
+      exports: {},
+      setTimeout,
+      clearTimeout,
+      setInterval,
+      clearInterval,
+      process,
+      Buffer,
+      TestResult: { pass: false, message: '' },
+      componentCode: compiledComponentCode,
+    };
+
+    // Create a context for the sandbox
+    const context = vm.createContext(sandbox);
+
+    // Prepare the test code with the component code
+    const fullTestCode = `
+      try {
+        // Component code
+        ${compiledComponentCode}
+
+        // Test code
+        ${testCode}
+      } catch (error) {
+        TestResult = {
+          pass: false,
+          message: 'Error executing test: ' + (error.message || 'Unknown error')
+        };
+      }
+    `;
+
+    // Run the test code in the sandbox
+    vm.runInContext(fullTestCode, context);
+
+    // Get the test result from the sandbox
+    const result = sandbox.TestResult as TestResult;
+
+    // If there's an expected result, compare it
+    if (expectedResult) {
+      const expectedPass = expectedResult.pass === undefined ? true : expectedResult.pass;
+      if (result.pass !== expectedPass) {
+        return {
+          pass: false,
+          message: `Test result (${result.pass}) does not match expected result (${expectedPass})`
+        };
+      }
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error running test code:', error);
+    return {
+      pass: false,
+      message: `Error running test: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
+  }
 }
