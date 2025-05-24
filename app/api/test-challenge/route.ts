@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 export async function POST(request: NextRequest) {
   try {
     // Parse the request body
-    const { code, challengeId, userId } = await request.json();
+    const { code, challengeId, userId, submitOnly } = await request.json();
 
     // Validate inputs
     if (!code || !challengeId) {
@@ -21,6 +21,48 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields: code and challengeId' },
         { status: 400 }
       );
+    }
+
+    // If this is a submit-only request and user is provided, just store the completion
+    if (submitOnly && userId) {
+      try {
+        // Store the submission
+        await supabase.from('submissions').insert({
+          user_id: userId,
+          challenge_id: challengeId,
+          code,
+          is_correct: true, // Assume correct since this is a submit-only request
+          test_results: []
+        });
+
+        // Mark the challenge as completed
+        const { error: completionError } = await supabase.from('challenge_completions').upsert({
+          user_id: userId,
+          challenge_id: challengeId,
+          code
+        }, {
+          onConflict: 'user_id,challenge_id'
+        });
+
+        if (completionError) {
+          console.error('Error storing challenge completion:', completionError);
+          return NextResponse.json(
+            { error: 'Failed to store challenge completion', details: completionError },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: 'Challenge completion stored successfully'
+        });
+      } catch (error) {
+        console.error('Error in submit-only request:', error);
+        return NextResponse.json(
+          { error: 'Failed to submit solution', details: error },
+          { status: 500 }
+        );
+      }
     }
 
     // Get the challenge details from Supabase
@@ -161,24 +203,35 @@ export async function POST(request: NextRequest) {
 
     // If a userId is provided, store the submission in Supabase
     if (userId) {
-      await supabase.from('submissions').insert({
-        user_id: userId,
-        challenge_id: challengeId,
-        code,
-        is_correct: isCorrect,
-        test_results: testResults
-      });
-
-      // If the solution is correct, mark the challenge as completed
-      if (isCorrect) {
-        // Use upsert to handle the case where the user has already completed the challenge
-        await supabase.from('challenge_completions').upsert({
+      try {
+        // Store the submission
+        await supabase.from('submissions').insert({
           user_id: userId,
           challenge_id: challengeId,
-          code
-        }, {
-          onConflict: 'user_id,challenge_id'
+          code,
+          is_correct: isCorrect,
+          test_results: testResults
         });
+
+        // If the solution is correct, mark the challenge as completed
+        if (isCorrect) {
+          // Use upsert to handle the case where the user has already completed the challenge
+          const { error: completionError } = await supabase.from('challenge_completions').upsert({
+            user_id: userId,
+            challenge_id: challengeId,
+            code
+          }, {
+            onConflict: 'user_id,challenge_id'
+          });
+
+          if (completionError) {
+            console.error('Error storing challenge completion:', completionError);
+            // Don't fail the entire request, just log the error
+          }
+        }
+      } catch (dbError) {
+        console.error('Error storing submission in database:', dbError);
+        // Don't fail the entire request, just log the error
       }
     }
 

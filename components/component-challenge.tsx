@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { CodeEditor } from "@/components/code-editor"
 import { Preview } from "@/components/preview"
 import { ChallengeNavigation } from "@/components/challenge-navigation"
@@ -10,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Check, RefreshCw, AlertCircle, Code, Eye, ArrowLeft, LayoutDashboard } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TestResult } from "@/utils/test-utils"
-import { supabase } from "@/lib/supabase"
+
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth"
 import { Challenge } from "@/data/challenge-types"
 import { useCompletedChallengesSupabase } from "@/hooks/use-completed-challenges-supabase"
@@ -133,12 +134,13 @@ import {
 interface ComponentChallengeProps {
   pathId: string;
   onBackToPathSelection: () => void;
+  initialChallengeIndex?: number;
 }
 
-export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentChallengeProps) {
+export function ComponentChallenge({ pathId, onBackToPathSelection, initialChallengeIndex = 0 }: ComponentChallengeProps) {
   // Get challenges for the selected path
   const [challenges, setChallenges] = useState<Challenge[]>([])
-  const [currentChallengeIndex, setCurrentChallengeIndex] = useState(0)
+  const [currentChallengeIndex, setCurrentChallengeIndex] = useState(initialChallengeIndex)
   const [code, setCode] = useState("")
   const [isCorrect, setIsCorrect] = useState(false)
   // Solution feature temporarily disabled
@@ -165,6 +167,8 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
   const { user } = useSupabaseAuth()
   // Use toast for notifications
   const { toast } = useToast()
+  // Use router for navigation
+  const router = useRouter()
   // Reference to test results section for scrolling
   const testResultsRef = useRef<HTMLDivElement>(null)
 
@@ -309,24 +313,41 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
     // Only allow submission if all tests pass
     if (isCorrect) {
       try {
-        // If user is authenticated, store completion in Supabase
-        if (user) {
-          // Store the completion in Supabase directly
-          const { error } = await supabase
-            .from('challenge_completions')
-            .upsert({
-              user_id: user.id,
-              challenge_id: currentChallenge.id,
-              code
-            }, {
-              onConflict: 'user_id,challenge_id'
-            });
-
-          if (error) {
-            console.error('Error storing challenge completion:', error);
-            throw error;
-          }
+        // Check if user is authenticated
+        if (!user) {
+          // If not authenticated, show a message and redirect to auth
+          toast({
+            title: "Sign In Required",
+            description: "Please sign in to submit your solution and track your progress!",
+            variant: "default",
+          });
+          router.push('/auth');
+          return;
         }
+
+        // If user is authenticated, submit through the API
+        console.log('Submitting solution for user:', user.id, 'challenge:', currentChallenge.id);
+
+        // Submit the solution through the API endpoint
+        const response = await fetch('/api/test-challenge', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            code,
+            challengeId: currentChallenge.id,
+            userId: user.id,
+            submitOnly: true // Flag to indicate this is a submission-only request
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to submit solution');
+        }
+
+        await response.json();
 
         // Mark the challenge as completed in local state
         markChallengeCompleted(currentChallenge.id, code);
@@ -347,7 +368,7 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
         console.error('Error submitting challenge:', error);
         toast({
           title: "Error",
-          description: "There was an error submitting your solution. Please try again.",
+          description: error instanceof Error ? error.message : "There was an error submitting your solution. Please try again.",
           variant: "destructive",
         });
       }
@@ -356,13 +377,19 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
 
   const handleNext = () => {
     if (currentChallengeIndex < challenges.length - 1) {
-      setCurrentChallengeIndex(currentChallengeIndex + 1)
+      const newIndex = currentChallengeIndex + 1;
+      setCurrentChallengeIndex(newIndex);
+      // Update URL to reflect the new challenge index
+      router.push(`/challenges/${pathId}?challengeIndex=${newIndex}`);
     }
   }
 
   const handlePrevious = () => {
     if (currentChallengeIndex > 0) {
-      setCurrentChallengeIndex(currentChallengeIndex - 1)
+      const newIndex = currentChallengeIndex - 1;
+      setCurrentChallengeIndex(newIndex);
+      // Update URL to reflect the new challenge index
+      router.push(`/challenges/${pathId}?challengeIndex=${newIndex}`);
     }
   }
 
@@ -406,6 +433,8 @@ export function ComponentChallenge({ pathId, onBackToPathSelection }: ComponentC
             onSelectChallenge={(index) => {
               setCurrentChallengeIndex(index);
               setShowProgressSummary(false);
+              // Update URL to reflect the selected challenge index
+              router.push(`/challenges/${pathId}?challengeIndex=${index}`);
             }}
           />
         )}

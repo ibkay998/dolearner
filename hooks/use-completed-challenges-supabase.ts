@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useSupabase } from '@/components/supabase-provider';
 import { useSupabaseAuth } from './use-supabase-auth';
 
 export function useCompletedChallengesSupabase() {
-  const { supabase } = useSupabase();
   const { user } = useSupabaseAuth();
   const [completedChallenges, setCompletedChallenges] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,20 +20,16 @@ export function useCompletedChallengesSupabase() {
       try {
         setLoading(true);
 
-        // Fetch completed challenges from Supabase
-        const { data, error } = await supabase
-          .from('challenge_completions')
-          .select('challenge_id')
-          .eq('user_id', user.id);
+        // Fetch completed challenges from the API endpoint
+        const response = await fetch(`/api/challenge-completions?userId=${user.id}`);
 
-        if (error) {
-          console.error('Error loading completed challenges from Supabase:', error);
+        if (!response.ok) {
+          console.error('Error loading completed challenges from API:', response.statusText);
           return;
         }
 
-        // Extract challenge IDs from the response
-        const challengeIds = data.map(item => item.challenge_id);
-        setCompletedChallenges(challengeIds);
+        const result = await response.json();
+        setCompletedChallenges(result.completedChallenges || []);
       } catch (error) {
         console.error('Error loading completed challenges:', error);
       } finally {
@@ -44,7 +38,7 @@ export function useCompletedChallengesSupabase() {
     };
 
     loadCompletedChallenges();
-  }, [user, supabase]);
+  }, [user]);
 
   // Function to mark a challenge as completed
   const markChallengeCompleted = async (challengeId: string, code: string) => {
@@ -54,22 +48,8 @@ export function useCompletedChallengesSupabase() {
     }
 
     try {
-      // Insert the completion record into Supabase
-      const { error } = await supabase
-        .from('challenge_completions')
-        .upsert({
-          user_id: user.id,
-          challenge_id: challengeId,
-          code
-        }, {
-          onConflict: 'user_id,challenge_id'
-        });
-
-      if (error) {
-        console.error('Error marking challenge as completed:', error);
-        return false;
-      }
-
+      // This function is now only used for local state management
+      // The actual database insertion is handled by the API in the submit flow
       // Update the local state
       if (!completedChallenges.includes(challengeId)) {
         setCompletedChallenges([...completedChallenges, challengeId]);
