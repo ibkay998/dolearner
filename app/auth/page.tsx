@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthContainer } from "@/components/auth-container";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
@@ -8,8 +8,10 @@ import { useSupabase } from "@/components/supabase-provider";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Loading } from "@/components/ui/loading";
 
-export default function AuthPage() {
+// Component that handles search params and needs Suspense
+function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading } = useSupabaseAuth();
@@ -64,6 +66,16 @@ export default function AuthPage() {
   }, [user, loading, router]);
 
   return (
+    <div className="container mx-auto py-8">
+      <AuthContainer />
+    </div>
+  );
+}
+
+export default function AuthPage() {
+  const router = useRouter();
+
+  return (
     <main className="min-h-screen flex flex-col bg-gray-50">
       <header className="border-b bg-white shadow-sm sticky top-0 z-10">
         <div className="container mx-auto py-3 flex justify-between items-center">
@@ -82,9 +94,13 @@ export default function AuthPage() {
         </div>
       </header>
 
-      <div className="container mx-auto py-8">
-        <AuthContainer />
-      </div>
+      <Suspense fallback={
+        <div className="container mx-auto py-8">
+          <Loading text="Loading authentication..." />
+        </div>
+      }>
+        <AuthPageContent />
+      </Suspense>
     </main>
   );
 }

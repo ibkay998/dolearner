@@ -57,9 +57,18 @@ erDiagram
         timestamp created_at
     }
 
+    USER_PATH_ENROLLMENTS {
+        uuid id PK
+        uuid user_id FK
+        string path_id
+        timestamp enrolled_at
+        boolean is_active
+    }
+
     %% Relationships
     AUTH_USERS ||--o{ CHALLENGE_COMPLETIONS : "completes"
     AUTH_USERS ||--o{ SUBMISSIONS : "submits"
+    AUTH_USERS ||--o{ USER_PATH_ENROLLMENTS : "enrolls_in"
     CHALLENGES ||--o{ CHALLENGE_TESTS : "has"
     CHALLENGES ||--o{ CHALLENGE_COMPLETIONS : "completed_by"
     CHALLENGES ||--o{ SUBMISSIONS : "submitted_for"
@@ -111,6 +120,14 @@ erDiagram
   - `code`: Submitted code
   - `is_correct`: Whether all tests passed
   - `test_results`: Detailed test outcomes
+
+### 🎓 **user_path_enrollments**
+- **Purpose**: Tracks which learning paths users have enrolled in
+- **Key Fields**:
+  - `user_id`: Links to auth.users
+  - `path_id`: Learning path identifier (react, css, etc.)
+  - `enrolled_at`: When user enrolled in the path
+  - `is_active`: Whether enrollment is still active
 
 ## Key Design Decisions
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { allChallenges } from '@/data/challenges';
 import { findNextIncompleteChallenge } from '@/utils/challenge-navigation';
+import { Challenge } from '@/data/challenge-types';
 
 // Check for required environment variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -64,6 +64,32 @@ export async function GET(request: NextRequest) {
 
     // Extract completed challenge IDs
     const completedChallengeIds = completions?.map(c => c.challenge_id) || [];
+
+    // Fetch all challenges from the database
+    const { data: challengesData, error: challengesError } = await supabase
+      .from('challenges')
+      .select('*')
+      .order('order_num', { ascending: true });
+
+    if (challengesError) {
+      console.error('Error fetching challenges:', challengesError);
+      return NextResponse.json(
+        { error: 'Failed to fetch challenges' },
+        { status: 500 }
+      );
+    }
+
+    // Convert to Challenge type
+    const allChallenges: Challenge[] = challengesData?.map(item => ({
+      id: item.id,
+      pathId: item.path_id,
+      title: item.title,
+      description: item.description,
+      initialCode: item.initial_code,
+      solutionCode: item.solution_code,
+      solutionMarker: item.solution_marker,
+      order: item.order_num
+    })) || [];
 
     // Find the next incomplete challenge
     const nextChallenge = findNextIncompleteChallenge(allChallenges, completedChallengeIds);

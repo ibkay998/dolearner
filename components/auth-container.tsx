@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 import { AuthForm } from "@/components/auth-form";
-import { UserProfile } from "@/components/user-profile";
 import { Loading } from "@/components/ui/loading";
 
 export function AuthContainer() {

@@ -1,23 +1,51 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { UserProfile } from "@/components/user-profile";
-import { CompletedChallengesDashboard } from "@/components/completed-challenges-dashboard";
+import { EnrolledPathsDashboard } from "@/components/enrolled-paths-dashboard";
+import { PathEnrollmentSelection } from "@/components/path-enrollment-selection";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
+import { useUserPathEnrollments } from "@/hooks/use-user-path-enrollments";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { Loading } from "@/components/ui/loading";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, loading } = useSupabaseAuth();
+  const { user, loading: authLoading } = useSupabaseAuth();
+  const { hasAnyEnrollments, loading: enrollmentsLoading } = useUserPathEnrollments();
+  const [showPathSelection, setShowPathSelection] = useState(false);
 
   // Redirect to auth if not authenticated
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push("/auth");
     }
-  }, [user, loading, router]);
+  }, [user, authLoading, router]);
+
+  // Show path selection if user has no enrollments (instead of redirecting)
+  const shouldShowInitialSetup = !authLoading && !enrollmentsLoading && user && !hasAnyEnrollments && !showPathSelection;
+
+  const handleAddPaths = useCallback(() => {
+    setShowPathSelection(true);
+  }, []);
+
+  const handleEnrollmentComplete = useCallback(() => {
+    setShowPathSelection(false);
+  }, []);
+
+  if (authLoading || enrollmentsLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loading text="Loading your profile..." size="lg" />
+      </main>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <main className="min-h-screen flex flex-col bg-gray-50">
@@ -39,18 +67,19 @@ export default function ProfilePage() {
       </header>
 
       <div className="container mx-auto py-8">
-        {user ? (
+        {showPathSelection || shouldShowInitialSetup ? (
+          <PathEnrollmentSelection
+            onEnrollmentComplete={handleEnrollmentComplete}
+            isInitialSetup={!!shouldShowInitialSetup}
+          />
+        ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="md:col-span-1">
               <UserProfile />
             </div>
             <div className="md:col-span-2">
-              <CompletedChallengesDashboard />
+              <EnrolledPathsDashboard onAddPaths={handleAddPaths} />
             </div>
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-500">Please sign in to view your profile.</p>
           </div>
         )}
       </div>

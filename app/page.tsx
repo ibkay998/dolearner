@@ -1,17 +1,18 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { LearningPathSelection } from "@/components/learning-path-selection";
 import { Button } from "@/components/ui/button";
 import { User } from "lucide-react";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 import { useToast } from "@/hooks/use-toast";
+import { Loading } from "@/components/ui/loading";
 
-export default function Home() {
+// Component that handles search params and needs Suspense
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useSupabaseAuth();
   const { toast } = useToast();
 
   // Show confirmation message if user was redirected after email confirmation
@@ -26,9 +27,18 @@ export default function Home() {
     }
   }, [searchParams, toast, router]);
 
+  // Note: Removed automatic redirect to profile to allow users to browse all paths
+
   const handleSelectPath = (pathId: string) => {
     router.push(`/challenges/${pathId}`);
   };
+
+  return <LearningPathSelection onSelectPath={handleSelectPath} />;
+}
+
+export default function Home() {
+  const router = useRouter();
+  const { user } = useSupabaseAuth();
 
   return (
     <main className="min-h-screen flex flex-col bg-gray-50">
@@ -49,7 +59,13 @@ export default function Home() {
         </div>
       </header>
 
-      <LearningPathSelection onSelectPath={handleSelectPath} />
+      <Suspense fallback={
+        <div className="flex-1 flex items-center justify-center">
+          <Loading text="Loading..." />
+        </div>
+      }>
+        <HomeContent />
+      </Suspense>
     </main>
   );
 }

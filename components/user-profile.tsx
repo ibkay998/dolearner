@@ -8,13 +8,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Loading } from "@/components/ui/loading";
 import { useToast } from "@/hooks/use-toast";
 import { useCompletedChallengesSupabase } from "@/hooks/use-completed-challenges-supabase";
+import { useUserPathEnrollments } from "@/hooks/use-user-path-enrollments";
 import { useNextChallenge } from "@/hooks/use-next-challenge";
-import { Trophy, ArrowRight, BookOpen } from "lucide-react";
+import { Trophy, ArrowRight, BookOpen, GraduationCap } from "lucide-react";
 
 export function UserProfile() {
   const router = useRouter();
   const { user, signOut } = useSupabaseAuth();
   const { completedChallenges, loading } = useCompletedChallengesSupabase();
+  const { enrollmentCount, enrolledPathIds } = useUserPathEnrollments();
   const { nextChallenge, loading: nextChallengeLoading } = useNextChallenge();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const { toast } = useToast();
@@ -97,6 +99,19 @@ export function UserProfile() {
                   <p className="text-sm text-gray-600">challenges completed</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-100">
+          <div className="flex items-center">
+            <GraduationCap className="h-8 w-8 text-green-500 mr-3" />
+            <div>
+              <h3 className="text-lg font-medium">Learning Paths</h3>
+              <div className="mt-1">
+                <p className="text-3xl font-bold">{enrollmentCount}</p>
+                <p className="text-sm text-gray-600">paths enrolled</p>
+              </div>
             </div>
           </div>
         </div>
