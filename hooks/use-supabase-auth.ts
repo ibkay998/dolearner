@@ -48,7 +48,18 @@ export function useSupabaseAuth() {
 
   // Function to sign up with email and password
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
+    // Get the current origin (works for both development and production)
+    const redirectTo = typeof window !== 'undefined'
+      ? `${window.location.origin}/auth/callback`
+      : 'https://dolearner.vercel.app/auth/callback';
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectTo
+      }
+    });
     if (error) throw error;
   };
 

@@ -1,14 +1,30 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 import { LearningPathSelection } from "@/components/learning-path-selection";
 import { Button } from "@/components/ui/button";
 import { User } from "lucide-react";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useSupabaseAuth();
+  const { toast } = useToast();
+
+  // Show confirmation message if user was redirected after email confirmation
+  useEffect(() => {
+    if (searchParams.get('confirmed') === 'true') {
+      toast({
+        title: "Welcome to DoLearner!",
+        description: "Your email has been confirmed. You can now track your progress!",
+      });
+      // Clean up the URL
+      router.replace('/');
+    }
+  }, [searchParams, toast, router]);
 
   const handleSelectPath = (pathId: string) => {
     router.push(`/challenges/${pathId}`);
