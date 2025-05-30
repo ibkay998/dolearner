@@ -7,6 +7,7 @@ import { Preview } from "@/components/preview"
 import { ChallengeNavigation } from "@/components/challenge-navigation"
 import { CompletedChallengesSummary } from "@/components/completed-challenges-summary"
 import { CongratulationsDialog } from "@/components/congratulations-dialog"
+import { DSAChallenge } from "@/components/dsa-challenge"
 import { Button } from "@/components/ui/button"
 import { Check, RefreshCw, AlertCircle, Code, Eye, ArrowLeft, LayoutDashboard } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -138,6 +139,17 @@ interface ComponentChallengeProps {
 }
 
 export function ComponentChallenge({ pathId, onBackToPathSelection, initialChallengeIndex = 0 }: ComponentChallengeProps) {
+  // Check if this is a DSA challenge path
+  if (pathId === 'dsa') {
+    return (
+      <DSAChallenge
+        pathId={pathId}
+        onBackToPathSelection={onBackToPathSelection}
+        initialChallengeIndex={initialChallengeIndex}
+      />
+    );
+  }
+
   // Get challenges for the selected path
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [currentChallengeIndex, setCurrentChallengeIndex] = useState(initialChallengeIndex)

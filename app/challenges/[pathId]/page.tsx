@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { User, Lock, Plus } from "lucide-react";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 import { useUserPathEnrollments } from "@/hooks/use-user-path-enrollments";
+import { useLearningPaths } from "@/hooks/use-app-data";
 import { Loading } from "@/components/ui/loading";
 
 interface ChallengePageProps {
@@ -23,6 +24,7 @@ function ChallengePageContent({ pathId }: { pathId: string }) {
   const searchParams = useSearchParams();
   const { user } = useSupabaseAuth();
   const { isEnrolledInPath, loading: enrollmentLoading } = useUserPathEnrollments();
+  const { data: dbLearningPaths = [], isLoading: pathsLoading } = useLearningPaths();
   const [initialChallengeIndex, setInitialChallengeIndex] = useState<number>(0);
 
   // Handle URL parameters for direct navigation to specific challenges
@@ -50,8 +52,8 @@ function ChallengePageContent({ pathId }: { pathId: string }) {
     return null;
   }
 
-  // Show loading while checking enrollment
-  if (enrollmentLoading) {
+  // Show loading while checking enrollment or paths
+  if (enrollmentLoading || pathsLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <Loading text="Checking access..." size="lg" />
@@ -59,8 +61,12 @@ function ChallengePageContent({ pathId }: { pathId: string }) {
     );
   }
 
+  // Find the database path that matches the URL slug
+  const dbPath = dbLearningPaths.find(path => path.slug === pathId);
+
   // Check if user is enrolled in this path (only for authenticated users)
-  const isEnrolled = user ? isEnrolledInPath(pathId) : true; // Allow unauthenticated access for now
+  // Use the database path UUID for enrollment checking
+  const isEnrolled = user && dbPath ? isEnrolledInPath(dbPath.id) : true; // Allow unauthenticated access for now
 
   return (
     <>

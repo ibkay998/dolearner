@@ -26,5 +26,13 @@ export const learningPaths: LearningPath[] = [
     color: "from-purple-600 to-pink-600", // Gradient colors for CSS
     order: 2,
   },
+  {
+    id: "dsa",
+    title: "Data Structures & Algorithms",
+    description: "Master fundamental algorithms and data structures through coding challenges",
+    icon: "Brain", // Lucide icon name
+    color: "from-green-600 to-emerald-600", // Gradient colors for DSA
+    order: 3,
+  },
   // More paths can be added here in the future
 ];

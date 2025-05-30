@@ -1,44 +1,15 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+
 import { useSupabaseAuth } from './use-supabase-auth';
+import { useUserCompletions, useCompleteChallenge } from './use-app-data';
 
 export function useCompletedChallengesSupabase() {
   const { user } = useSupabaseAuth();
-  const [completedChallenges, setCompletedChallenges] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  // Load completed challenges from Supabase when the user changes
-  useEffect(() => {
-    const loadCompletedChallenges = async () => {
-      if (!user) {
-        setCompletedChallenges([]);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-
-        // Fetch completed challenges from the API endpoint
-        const response = await fetch(`/api/challenge-completions?userId=${user.id}`);
-
-        if (!response.ok) {
-          console.error('Error loading completed challenges from API:', response.statusText);
-          return;
-        }
-
-        const result = await response.json();
-        setCompletedChallenges(result.completedChallenges || []);
-      } catch (error) {
-        console.error('Error loading completed challenges:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadCompletedChallenges();
-  }, [user]);
+  // Use React Query hook for fetching completions
+  const { data: completedChallenges = [], isLoading: loading } = useUserCompletions(user?.id || '');
+  const completeChallengeMutation = useCompleteChallenge();
 
   // Function to mark a challenge as completed
   const markChallengeCompleted = async (challengeId: string, code: string) => {
@@ -48,13 +19,11 @@ export function useCompletedChallengesSupabase() {
     }
 
     try {
-      // This function is now only used for local state management
-      // The actual database insertion is handled by the API in the submit flow
-      // Update the local state
-      if (!completedChallenges.includes(challengeId)) {
-        setCompletedChallenges([...completedChallenges, challengeId]);
-      }
-
+      await completeChallengeMutation.mutateAsync({
+        userId: user.id,
+        challengeId,
+        code
+      });
       return true;
     } catch (error) {
       console.error('Error marking challenge as completed:', error);

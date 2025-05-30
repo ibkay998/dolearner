@@ -2,12 +2,14 @@
 
 import { reactChallenges } from './react';
 import { cssChallenges } from './css';
+import { dsaChallenges } from './dsa';
 import { Challenge } from '../challenge-types';
 
 // Combine all challenges from different paths
 export const allChallenges: Challenge[] = [
   ...reactChallenges,
   ...cssChallenges,
+  ...dsaChallenges,
 ];
 
 // Get challenges by path ID

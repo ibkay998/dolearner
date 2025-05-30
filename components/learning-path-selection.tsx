@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { LearningPath, learningPaths } from "@/data/learning-paths";
 import { Button } from "@/components/ui/button";
-import { Code, Palette, ArrowRight, CheckCircle, BookOpen, Award } from "lucide-react";
+import { Code, Palette, ArrowRight, CheckCircle, BookOpen, Award, Brain } from "lucide-react";
 import { getChallengesByPath } from "@/data/challenges";
 
 interface LearningPathSelectionProps {
@@ -49,6 +49,7 @@ export function LearningPathSelection({ onSelectPath }: LearningPathSelectionPro
   const pathIcons: Record<string, React.ReactNode> = {
     react: <Code className="h-6 w-6" />,
     css: <Palette className="h-6 w-6" />,
+    dsa: <Brain className="h-6 w-6" />,
   };
 
   return (

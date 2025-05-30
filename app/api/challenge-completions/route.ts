@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     // Get the user ID from the query parameters
     const userId = request.nextUrl.searchParams.get('userId');
-    
+
     if (!userId) {
       return NextResponse.json(
         { error: 'Missing required parameter: userId' },
@@ -19,10 +19,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Query the challenge_completions table for the user's completed challenges
+    // Query the new challenge_completions table with legacy ID mapping
     const { data, error } = await supabase
-      .from('challenge_completions')
-      .select('challenge_id, completed_at')
+      .from('challenge_completions_new')
+      .select(`
+        completed_at,
+        challenge:challenges_new(legacy_id)
+      `)
       .eq('user_id', userId);
 
     if (error) {
@@ -33,9 +36,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Return the completed challenge IDs
+    // Return the completed challenge legacy IDs for backward compatibility
     return NextResponse.json({
-      completedChallenges: data.map(item => item.challenge_id)
+      completedChallenges: data
+        .map(item => item.challenge?.legacy_id)
+        .filter(Boolean)
     });
   } catch (error) {
     console.error('Error in challenge-completions API:', error);

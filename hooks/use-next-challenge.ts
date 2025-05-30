@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
 import { useSupabaseAuth } from './use-supabase-auth';
+import { useNextChallenge as useNextChallengeQuery } from './use-app-data';
 
 export interface NextChallengeData {
   hasNextChallenge: boolean;
@@ -15,45 +15,21 @@ export interface NextChallengeData {
 
 export function useNextChallenge() {
   const { user } = useSupabaseAuth();
-  const [nextChallenge, setNextChallenge] = useState<NextChallengeData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchNextChallenge = async () => {
-    if (!user) {
-      setNextChallenge(null);
-      setLoading(false);
-      return;
-    }
+  // Use React Query hook for fetching next challenge
+  const {
+    data: nextChallenge,
+    isLoading: loading,
+    error: queryError,
+    refetch
+  } = useNextChallengeQuery(user?.id || '');
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(`/api/next-challenge?userId=${user.id}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch next challenge');
-      }
-
-      const data = await response.json();
-      setNextChallenge(data);
-    } catch (err) {
-      console.error('Error fetching next challenge:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchNextChallenge();
-  }, [user]);
+  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Unknown error') : null;
 
   return {
     nextChallenge,
     loading,
     error,
-    refetch: fetchNextChallenge
+    refetch
   };
 }

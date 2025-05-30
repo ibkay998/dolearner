@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { LearningPath, learningPaths } from "@/data/learning-paths";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Code, Palette, CheckCircle, BookOpen, Award, Plus, X } from "lucide-react";
+import { Code, Palette, CheckCircle, BookOpen, Award, Plus, X, Brain } from "lucide-react";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
-import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { Loading } from "@/components/ui/loading";
+import { useLearningPaths, useChallengesByEnrolledPaths } from "@/hooks/use-app-data";
+import { useUserPathEnrollments } from "@/hooks/use-user-path-enrollments";
+import { useEnrollInPath } from "@/hooks/use-app-data";
 
 interface PathEnrollmentSelectionProps {
   onEnrollmentComplete: () => void;
@@ -22,57 +23,25 @@ export function PathEnrollmentSelection({
   const { user } = useSupabaseAuth();
   const { toast } = useToast();
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
-  const [enrolledPaths, setEnrolledPaths] = useState<string[]>([]);
-  const [pathChallenges, setPathChallenges] = useState<Record<string, number>>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [isEnrolling, setIsEnrolling] = useState(false);
 
-  // Load existing enrollments and challenge counts
-  useEffect(() => {
-    const loadData = async () => {
-      if (!user) return;
+  // Use React Query hooks
+  const { data: learningPaths = [], isLoading: pathsLoading } = useLearningPaths();
+  const { enrollments, loading: enrollmentsLoading } = useUserPathEnrollments();
+  const { data: challenges = [], isLoading: challengesLoading } = useChallengesByEnrolledPaths(user?.id || '');
+  const enrollInPathMutation = useEnrollInPath();
 
-      setIsLoading(true);
-      try {
-        // Load existing enrollments
-        const { data: enrollments, error: enrollmentError } = await supabase
-          .from('user_path_enrollments')
-          .select('path_id')
-          .eq('user_id', user.id)
-          .eq('is_active', true);
+  const isLoading = pathsLoading || enrollmentsLoading || challengesLoading;
+  const enrolledPathIds = enrollments.map(e => e.path_id);
 
-        if (enrollmentError) {
-          console.error('Error loading enrollments:', enrollmentError);
-        } else {
-          const enrolled = enrollments?.map(e => e.path_id) || [];
-          setEnrolledPaths(enrolled);
-        }
-
-        // Load challenge counts for each path
-        const counts: Record<string, number> = {};
-        for (const path of learningPaths) {
-          const { data: challenges, error } = await supabase
-            .from('challenges')
-            .select('id')
-            .eq('path_id', path.id);
-
-          if (!error) {
-            counts[path.id] = challenges?.length || 0;
-          }
-        }
-        setPathChallenges(counts);
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
-  }, [user]);
+  // Calculate challenge counts per path
+  const pathChallenges = challenges.reduce((acc, challenge) => {
+    const pathId = challenge.path_id;
+    acc[pathId] = (acc[pathId] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   const handlePathToggle = (pathId: string) => {
-    if (enrolledPaths.includes(pathId)) {
+    if (enrolledPathIds.includes(pathId)) {
       // Can't deselect already enrolled paths in this component
       return;
     }
@@ -87,20 +56,13 @@ export function PathEnrollmentSelection({
   const handleEnroll = async () => {
     if (!user || selectedPaths.length === 0) return;
 
-    setIsEnrolling(true);
     try {
-      // Insert new enrollments
-      const enrollments = selectedPaths.map(pathId => ({
-        user_id: user.id,
-        path_id: pathId
-      }));
-
-      const { error } = await supabase
-        .from('user_path_enrollments')
-        .insert(enrollments);
-
-      if (error) {
-        throw error;
+      // Enroll in each selected path
+      for (const pathId of selectedPaths) {
+        await enrollInPathMutation.mutateAsync({
+          userId: user.id,
+          pathId
+        });
       }
 
       toast({
@@ -110,21 +72,6 @@ export function PathEnrollmentSelection({
 
       // Reset selected paths
       setSelectedPaths([]);
-
-      // Small delay to ensure database consistency
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Refresh enrolled paths
-      const { data: newEnrollments, error: refreshError } = await supabase
-        .from('user_path_enrollments')
-        .select('path_id')
-        .eq('user_id', user.id)
-        .eq('is_active', true);
-
-      if (!refreshError && newEnrollments) {
-        setEnrolledPaths(newEnrollments.map(e => e.path_id));
-      }
-
       onEnrollmentComplete();
     } catch (error) {
       console.error('Error enrolling in paths:', error);
@@ -133,8 +80,6 @@ export function PathEnrollmentSelection({
         description: "There was an error enrolling you in the selected paths. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsEnrolling(false);
     }
   };
 
@@ -142,6 +87,7 @@ export function PathEnrollmentSelection({
   const pathIcons: Record<string, React.ReactNode> = {
     react: <Code className="h-6 w-6" />,
     css: <Palette className="h-6 w-6" />,
+    dsa: <Brain className="h-6 w-6" />,
   };
 
   if (isLoading) {
@@ -151,7 +97,7 @@ export function PathEnrollmentSelection({
   // Filter paths to show only those not already enrolled (for adding new paths)
   const availablePaths = isInitialSetup
     ? learningPaths
-    : learningPaths.filter(path => !enrolledPaths.includes(path.id));
+    : learningPaths.filter(path => !enrolledPathIds.includes(path.id));
 
   if (!isInitialSetup && availablePaths.length === 0) {
     return (
@@ -182,9 +128,19 @@ export function PathEnrollmentSelection({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {availablePaths.map((path) => {
-          const isEnrolled = enrolledPaths.includes(path.id);
+          const isEnrolled = enrolledPathIds.includes(path.id);
           const isSelected = selectedPaths.includes(path.id);
           const isSelectable = !isEnrolled;
+
+          // Map path slugs to color schemes
+          const pathColors: Record<string, string> = {
+            react: 'from-blue-600 to-indigo-600',
+            css: 'from-purple-600 to-pink-600',
+            dsa: 'from-green-600 to-emerald-600',
+            backend: 'from-orange-600 to-red-600',
+          };
+
+          const colorScheme = pathColors[path.slug] || pathColors.react;
 
           return (
             <Card
@@ -201,11 +157,11 @@ export function PathEnrollmentSelection({
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <div className={`p-3 rounded-xl bg-gradient-to-r ${path.color} text-white mr-4 shadow-md`}>
-                      {pathIcons[path.id] || <Code className="h-6 w-6" />}
+                    <div className={`p-3 rounded-xl bg-gradient-to-r ${colorScheme} text-white mr-4 shadow-md`}>
+                      {pathIcons[path.slug] || <Code className="h-6 w-6" />}
                     </div>
                     <div>
-                      <CardTitle className="text-xl">{path.title}</CardTitle>
+                      <CardTitle className="text-xl">{path.name}</CardTitle>
                       <div className="flex items-center text-sm text-gray-500 mt-1">
                         <BookOpen className="h-4 w-4 mr-1" />
                         <span>{pathChallenges[path.id] || 0} challenges</span>
@@ -224,7 +180,7 @@ export function PathEnrollmentSelection({
                 <div className="flex justify-between items-center">
                   <div className="flex items-center text-sm text-gray-500">
                     <Award className="h-4 w-4 mr-1" />
-                    <span>Beginner friendly</span>
+                    <span>{path.difficulty_level || 'Beginner'} friendly</span>
                   </div>
                   {isEnrolled ? (
                     <span className="text-sm font-medium text-green-600">Enrolled</span>
@@ -260,11 +216,11 @@ export function PathEnrollmentSelection({
         <div className="text-center">
           <Button
             onClick={handleEnroll}
-            disabled={isEnrolling}
+            disabled={enrollInPathMutation.isPending}
             size="lg"
             className="px-8"
           >
-            {isEnrolling ? (
+            {enrollInPathMutation.isPending ? (
               <>
                 <Loading size="sm" className="mr-2" />
                 Enrolling...

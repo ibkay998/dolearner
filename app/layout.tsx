@@ -3,6 +3,7 @@ import './globals.css'
 import { Toaster } from "@/components/ui/toaster"
 import { Analytics } from "@vercel/analytics/react"
 import { SupabaseProvider } from "@/components/supabase-provider"
+import { ReactQueryProvider } from "@/lib/react-query"
 
 export const metadata: Metadata = {
   title: 'v0 App',
@@ -19,9 +20,11 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <SupabaseProvider>
-          {children}
-          <Toaster />
-          <Analytics />
+          <ReactQueryProvider>
+            {children}
+            <Toaster />
+            <Analytics />
+          </ReactQueryProvider>
         </SupabaseProvider>
       </body>
     </html>
