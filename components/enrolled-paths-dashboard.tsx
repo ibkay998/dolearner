@@ -84,9 +84,14 @@ export function EnrolledPathsDashboard({ onAddPaths }: EnrolledPathsDashboardPro
     // If all challenges are complete, go to the first challenge
     const challengeIndex = firstIncompleteIndex >= 0 ? firstIncompleteIndex : 0;
 
-    // Get the path slug for navigation
+    // Get the path slug for navigation - ensure we use the correct slug
     const pathInfo = getPathInfo(pathId);
-    const pathSlug = pathInfo?.slug || 'react';
+    const pathSlug = pathInfo?.slug;
+
+    if (!pathSlug) {
+      console.error(`No slug found for path ID: ${pathId}`);
+      return;
+    }
 
     router.push(`/challenges/${pathSlug}?challengeIndex=${challengeIndex}`);
   };
@@ -105,7 +110,13 @@ export function EnrolledPathsDashboard({ onAddPaths }: EnrolledPathsDashboardPro
 
   const handleChallengeClick = (pathId: string, challengeIndex: number) => {
     const pathInfo = getPathInfo(pathId);
-    const pathSlug = pathInfo?.slug || 'react';
+    const pathSlug = pathInfo?.slug;
+
+    if (!pathSlug) {
+      console.error(`No slug found for path ID: ${pathId}`);
+      return;
+    }
+
     router.push(`/challenges/${pathSlug}?challengeIndex=${challengeIndex}`);
   };
 

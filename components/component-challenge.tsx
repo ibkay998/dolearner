@@ -16,6 +16,7 @@ import { TestResult } from "@/utils/test-utils"
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth"
 import { Challenge } from "@/data/challenge-types"
 import { useCompletedChallengesSupabase } from "@/hooks/use-completed-challenges-supabase"
+import { useChallengesByPath } from "@/hooks/use-app-data"
 import { useToast } from "@/hooks/use-toast"
 
 // Helper function to provide hints for failed tests
@@ -184,14 +185,15 @@ export function ComponentChallenge({ pathId, onBackToPathSelection, initialChall
   // Reference to test results section for scrolling
   const testResultsRef = useRef<HTMLDivElement>(null)
 
-  // Load challenges for the selected path
+  // Load challenges from database using React Query
+  const { data: pathChallenges = [], isLoading: challengesLoading, error: challengesError } = useChallengesByPath(pathId);
+
+  // Update local challenges state when data changes
   useEffect(() => {
-    // Import challenges dynamically to avoid circular dependencies
-    import('@/data/challenges').then(({ getChallengesByPath }) => {
-      const pathChallenges = getChallengesByPath(pathId);
+    if (pathChallenges.length > 0) {
       setChallenges(pathChallenges);
-    });
-  }, [pathId]);
+    }
+  }, [pathChallenges]);
 
   const currentChallenge = challenges[currentChallengeIndex] || {
     id: '',

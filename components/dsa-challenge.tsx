@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { TestResult } from '@/utils/test-utils';
 import { Challenge } from '@/data/challenge-types';
-import { getChallengesByPath } from '@/data/challenges';
+import { useChallengesByPath } from '@/hooks/use-app-data';
 import { supabase } from '@/lib/supabase';
 import { ArrowLeft, ArrowRight, Play, CheckCircle, XCircle, Clock, MemoryStick, Brain, Code } from 'lucide-react';
 import { CodeEditor } from './code-editor';
@@ -50,17 +50,24 @@ export function DSAChallenge({ pathId, onBackToPathSelection, initialChallengeIn
   const [showCongratulations, setShowCongratulations] = useState(false);
   const [challengeKey, setChallengeKey] = useState(`dsa-challenge-${0}`);
 
-  // Load challenges for the DSA path
-  useEffect(() => {
-    const pathChallenges = getChallengesByPath(pathId);
-    setChallenges(pathChallenges);
+  // Load challenges from database using React Query
+  const { data: pathChallenges = [], isLoading: challengesLoading } = useChallengesByPath(pathId);
 
+  // Update local challenges state when data changes
+  useEffect(() => {
     if (pathChallenges.length > 0) {
-      const challenge = pathChallenges[currentChallengeIndex];
+      setChallenges(pathChallenges);
+    }
+  }, [pathChallenges]);
+
+  // Update code when challenge changes
+  useEffect(() => {
+    if (challenges.length > 0) {
+      const challenge = challenges[currentChallengeIndex];
       setCode(challenge?.initialCode || "");
       setChallengeKey(`dsa-challenge-${currentChallengeIndex}`);
     }
-  }, [pathId, currentChallengeIndex]);
+  }, [currentChallengeIndex, challenges]);
 
   const currentChallenge = challenges[currentChallengeIndex];
 
@@ -74,11 +81,29 @@ export function DSAChallenge({ pathId, onBackToPathSelection, initialChallengeIn
       return;
     }
 
+    // Prevent multiple simultaneous requests
+    if (isRunning) {
+      toast({
+        title: "Please wait",
+        description: "Tests are already running...",
+        variant: "default",
+      });
+      return;
+    }
+
     setIsRunning(true);
     setTestResults([]);
+    setIsCorrect(false);
+
+    // Create an AbortController for request cancellation
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, 30000); // 30 second timeout
 
     try {
       const user = await supabase.auth.getUser();
+
       const response = await fetch('/api/test-dsa-challenge', {
         method: 'POST',
         headers: {
@@ -86,10 +111,17 @@ export function DSAChallenge({ pathId, onBackToPathSelection, initialChallengeIn
         },
         body: JSON.stringify({
           challengeId: currentChallenge.id,
-          code: code,
+          code: code.trim(),
           userId: user.data.user?.id,
         }),
+        signal: abortController.signal,
       });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const result = await response.json();
 
@@ -109,13 +141,33 @@ export function DSAChallenge({ pathId, onBackToPathSelection, initialChallengeIn
         });
       }
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('Error running tests:', error);
+
+      let errorMessage = "Failed to run tests. Please try again.";
+
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = "Test execution timed out. Your code might have an infinite loop or be too slow.";
+        } else if (error.message.includes('fetch')) {
+          errorMessage = "Network error. Please check your connection and try again.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
       toast({
         title: "Error",
-        description: "Failed to run tests. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
+
+      setTestResults([{
+        pass: false,
+        message: errorMessage,
+      }]);
     } finally {
+      clearTimeout(timeoutId);
       setIsRunning(false);
     }
   };

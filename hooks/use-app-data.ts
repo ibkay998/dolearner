@@ -76,25 +76,65 @@ export const appQueryKeys = {
   nextChallenge: (userId: string) => [...appQueryKeys.all, 'nextChallenge', userId] as const,
 };
 
+// Helper function to map database challenge to Challenge interface
+function mapDbChallengeToChallenge(dbChallenge: any): Challenge {
+  return {
+    id: dbChallenge.legacy_id || dbChallenge.id,
+    pathId: dbChallenge.path?.slug || 'unknown',
+    title: dbChallenge.title || '',
+    description: dbChallenge.description || dbChallenge.instructions || '',
+    initialCode: dbChallenge.starter_code || '',
+    solutionCode: dbChallenge.solution_code || '',
+    solutionMarker: dbChallenge.metadata?.solution_marker || '',
+    order: dbChallenge.order_index || 0
+  };
+}
+
 // Challenges Hook - Get challenges by path slug
 export function useChallengesByPath(pathSlug: string) {
   return useQuery({
     queryKey: appQueryKeys.challengesByPath(pathSlug),
     queryFn: async (): Promise<Challenge[]> => {
+      // First get the learning path by slug to ensure it exists
+      const { data: pathData, error: pathError } = await supabase
+        .from('learning_paths')
+        .select('id, name, slug')
+        .eq('slug', pathSlug)
+        .eq('is_active', true)
+        .single();
+
+      if (pathError) {
+        console.error('Error fetching learning path:', pathError);
+        throw new Error(`Learning path '${pathSlug}' not found`);
+      }
+
+      if (!pathData) {
+        throw new Error(`Learning path '${pathSlug}' not found`);
+      }
+
+      // Then get challenges for this specific path
       const { data, error } = await supabase
         .from('challenges_new')
         .select(`
-          *,
-          path:learning_paths(id, name, slug)
+          *
         `)
-        .eq('path.slug', pathSlug)
+        .eq('path_id', pathData.id)
         .eq('is_active', true)
         .order('order_index', { ascending: true });
 
-      if (error) throw error;
-      return data || [];
+      if (error) {
+        console.error('Error fetching challenges:', error);
+        throw error;
+      }
+
+      // Map database format to Challenge interface
+      return (data || []).map(challenge => ({
+        ...mapDbChallengeToChallenge(challenge),
+        path: pathData // Add the path data we fetched earlier
+      }));
     },
     enabled: !!pathSlug,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -117,7 +157,9 @@ export function useChallenge(challengeId: string) {
         if (error.code === 'PGRST116') return null; // No rows found
         throw error;
       }
-      return data;
+
+      // Map database format to Challenge interface
+      return data ? mapDbChallengeToChallenge(data) : null;
     },
     enabled: !!challengeId,
   });

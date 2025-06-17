@@ -39,15 +39,26 @@ function ChallengePageContent({ pathId }: { pathId: string }) {
     }
   }, [searchParams]);
 
-  // Get the selected path details for the header
-  const selectedPath = learningPaths.find(path => path.id === pathId);
+  // Get the selected path details - first check static data, then database
+  const selectedPath = learningPaths.find(path => path.id === pathId) ||
+    dbLearningPaths.find(path => path.slug === pathId);
 
   const handleBackToPathSelection = () => {
     router.push('/');
   };
 
-  // If path doesn't exist, redirect to home
+  // Show loading while paths are being fetched
+  if (pathsLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loading text="Loading path..." />
+      </div>
+    );
+  }
+
+  // If path doesn't exist in either static or database data, redirect to home
   if (!selectedPath) {
+    console.warn(`Path '${pathId}' not found in learning paths`);
     router.push('/');
     return null;
   }
@@ -79,7 +90,7 @@ function ChallengePageContent({ pathId }: { pathId: string }) {
               </div>
               <CardTitle>Path Not Enrolled</CardTitle>
               <CardDescription>
-                You need to enroll in the {selectedPath.title} learning path to access these challenges.
+                You need to enroll in the {selectedPath.title || selectedPath.name || 'this'} learning path to access these challenges.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center space-y-4">
@@ -115,9 +126,22 @@ export default function ChallengePage({ params }: ChallengePageProps) {
   const router = useRouter();
   const { user } = useSupabaseAuth();
   const { pathId } = use(params);
+  const { data: dbLearningPaths = [], isLoading: pathsLoading } = useLearningPaths();
 
-  // Get the selected path details for the header
-  const selectedPath = learningPaths.find(path => path.id === pathId);
+  // Get the selected path details for the header - check both static and database
+  const selectedPath = learningPaths.find(path => path.id === pathId) ||
+    dbLearningPaths.find(path => path.slug === pathId);
+
+  // Show loading while paths are being fetched
+  if (pathsLoading) {
+    return (
+      <main className="min-h-screen flex flex-col bg-gray-50">
+        <div className="flex-1 flex items-center justify-center">
+          <Loading text="Loading..." />
+        </div>
+      </main>
+    );
+  }
 
   // If path doesn't exist, redirect to home
   if (!selectedPath) {
@@ -125,12 +149,17 @@ export default function ChallengePage({ params }: ChallengePageProps) {
     return null;
   }
 
+  // Helper function to get display title from either path type
+  const getPathTitle = (path: any) => {
+    return path.title || path.name || 'Learning';
+  };
+
   return (
     <main className="min-h-screen flex flex-col bg-gray-50">
       <header className="border-b bg-white shadow-sm sticky top-0 z-10">
         <div className="container mx-auto py-3 flex justify-between items-center">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            DoLearner: {selectedPath.title} Practice
+            DoLearner: {getPathTitle(selectedPath)} Practice
           </h1>
           <Button
             variant="ghost"

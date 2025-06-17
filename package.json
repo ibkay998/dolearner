@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
+    "migrate-challenges": "node scripts/migrate-challenges-to-db.js",
+    "audit-challenges": "node scripts/audit-challenges.js",
     "test:watch": "jest --watch",
     "populate-challenges": "node scripts/populate-challenges.js",
     "setup-test-system": "node scripts/setup-test-system.js",

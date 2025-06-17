@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
       if (nextChallenge) {
         return NextResponse.json({
           hasNextChallenge: true,
-          pathId: enrollment.path?.slug,
+          pathId: enrollment.path?.slug || 'react', // Fallback to react if slug is missing
           challengeIndex: nextChallenge.order_index,
           challenge: {
             id: nextChallenge.legacy_id,
